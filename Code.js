@@ -1916,7 +1916,8 @@ function getWorkSummary(year, month) {
     }
   });
 
-  // 무급휴가 일수
+  // 무급휴가 일수 — 휴가기록 시트 (A직원ID B이름 C연월일 D휴가종류 E사용시간)
+  //   종류에 '무급' 포함 시 무급. 사용시간(E, 없으면 8h=종일) ÷ 8 로 일수 환산
   const unpaid = {}; // empId: days
   const leaveSheet = ss.getSheetByName('휴가기록');
   if (leaveSheet) {
@@ -1926,7 +1927,8 @@ function getWorkSummary(year, month) {
       const type = (d[i][3] || '').toString();
       if (type.indexOf('무급') !== -1) {
         const empId = d[i][0];
-        unpaid[empId] = (unpaid[empId] || 0) + 1;
+        const h = parseFloat(d[i][4]);
+        unpaid[empId] = (unpaid[empId] || 0) + (isNaN(h) ? 1 : h / 8);
       }
     }
   }
@@ -1963,12 +1965,10 @@ function getPayrollData(year, month) {
     overtimePrev = _mergeOvertime_(getWorkSummary(year, month - 1), {});
   }
 
-  // 무급휴가는 당월 실적
+  // 무급휴가는 당월 실적 (휴가기록 시트에서 집계)
   const cur = getWorkSummary(year, month);
   const unpaid = {};
   Object.keys(cur).forEach(id => { unpaid[id] = cur[id].unpaidDays || 0; });
-  const docUnpaid = getUnpaidFromDocs(year, month);
-  Object.keys(docUnpaid).forEach(id => { unpaid[id] = (unpaid[id] || 0) + docUnpaid[id]; });
 
   const daysInMonth = new Date(year, month, 0).getDate();
 
@@ -3208,25 +3208,22 @@ function bal_fmt(hours) {
   return (neg ? '-' : '') + s.trim();
 }
 
-// 결재문서 승인 휴가에서 사용시간 합 (dateOk: 사용날짜 조건함수)
+// 휴가기록 시트에서 항목별 사용시간 합 (dateOk: 사용날짜 조건함수)
+// 시트: A직원ID B이름 C연월일 D휴가종류 E사용시간(없으면 8h=종일)
 function bal_usedHours(empId, item, dateOk) {
-  var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('결재문서');
+  var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('휴가기록');
   if (!sheet) return 0;
   var last = sheet.getLastRow();
   if (last < 2) return 0;
-  var v = sheet.getRange(2, 1, last - 1, 16).getValues();
+  var v = sheet.getRange(2, 1, last - 1, 5).getValues();
   var sum = 0;
   for (var i = 0; i < v.length; i++) {
-    if ((v[i][2] || '').toString() !== empId.toString()) continue; // C 신청자ID
-    if ((v[i][6] || '').toString() !== '휴가') continue;           // G 종류
-    if ((v[i][11] || '').toString() !== '승인') continue;          // L 결과
-    var detail = {};
-    try { detail = JSON.parse(v[i][15] || '{}'); } catch (e) { continue; }
-    if (detail.leaveType !== item) continue;
-    var m = (detail.period || '').toString().match(/\d{4}-\d{2}-\d{2}/);
-    var useDate = m ? m[0] : '';
+    if ((v[i][0] || '').toString() !== empId.toString()) continue; // A 직원ID
+    if ((v[i][3] || '').toString() !== item) continue;             // D 휴가종류
+    var useDate = _attYmd_(v[i][2]);                               // C 연월일
     if (!useDate || !dateOk(useDate)) continue;
-    sum += parseFloat(detail.usedHours) || 0;
+    var h = parseFloat(v[i][4]);
+    sum += isNaN(h) ? BAL_DAY_HOURS : h;
   }
   return sum;
 }
@@ -3338,27 +3335,24 @@ function getAllLeaveBalance() {
   var gv = [];
   if (grantSheet && grantSheet.getLastRow() >= 2) gv = grantSheet.getRange(2, 1, grantSheet.getLastRow() - 1, 8).getValues();
 
-  // 3) 결재문서 전체 (사용)
-  var docSheet = ss.getSheetByName('결재문서');
-  var dv = [];
-  if (docSheet && docSheet.getLastRow() >= 2) dv = docSheet.getRange(2, 1, docSheet.getLastRow() - 1, 16).getValues();
+  // 3) 휴가기록 전체 (사용) — A직원ID B이름 C연월일 D휴가종류 E사용시간
+  var useSheet = ss.getSheetByName('휴가기록');
+  var uv = [];
+  if (useSheet && useSheet.getLastRow() >= 2) uv = useSheet.getRange(2, 1, useSheet.getLastRow() - 1, 5).getValues();
 
   // 사용 인덱스: empId → item → [{date, hours}]
   var useMap = {};
-  for (var d = 0; d < dv.length; d++) {
-    if ((dv[d][6] || '').toString() !== '휴가') continue;
-    if ((dv[d][11] || '').toString() !== '승인') continue;
-    var uid = (dv[d][2] || '').toString();
-    var detail = {};
-    try { detail = JSON.parse(dv[d][15] || '{}'); } catch (e) { continue; }
-    var it = detail.leaveType;
-    if (!it) continue;
-    var m = (detail.period || '').toString().match(/\d{4}-\d{2}-\d{2}/);
-    if (!m) continue;
-    var hrs = parseFloat(detail.usedHours) || 0;
+  for (var d = 0; d < uv.length; d++) {
+    var uid = (uv[d][0] || '').toString();
+    var it = (uv[d][3] || '').toString();
+    if (!uid || !it) continue;
+    var ud = _attYmd_(uv[d][2]);
+    if (!ud) continue;
+    var hrs = parseFloat(uv[d][4]);
+    if (isNaN(hrs)) hrs = BAL_DAY_HOURS;
     if (!useMap[uid]) useMap[uid] = {};
     if (!useMap[uid][it]) useMap[uid][it] = [];
-    useMap[uid][it].push({ date: m[0], hours: hrs });
+    useMap[uid][it].push({ date: ud, hours: hrs });
   }
 
   // 부여 인덱스: empId → item → [{date, year, days}]
@@ -3469,38 +3463,6 @@ function setupBalanceCacheTrigger() {
   });
   ScriptApp.newTrigger('buildLeaveBalanceCache').timeBased().everyDays(1).atHour(4).create();
   return { success: true, message: '매일 새벽 4시 잔여캐시 갱신 트리거 등록 완료' };
-}
-
-// [무급 휴가 → 월급 반영] code.gs 맨 아래에 추가
-// 결재문서에서 그 달 '무급' 휴가 사용시간을 무급일수(÷8)로 집계
-// 무급 판정: H열='무급' 또는 항목명에 '(무급)' 또는 보건휴가
-function getUnpaidFromDocs(year, month) {
-  year = parseInt(year, 10);
-  month = parseInt(month, 10);
-  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('결재문서');
-  const out = {};
-  if (!sheet) return out;
-  const last = sheet.getLastRow();
-  if (last < 2) return out;
-  const v = sheet.getRange(2, 1, last - 1, 16).getValues();
-  const ym = year + '-' + ('0' + month).slice(-2);
-  for (let i = 0; i < v.length; i++) {
-    const empId = (v[i][2] || '').toString();          // C 신청자ID
-    if (!empId) continue;
-    if ((v[i][6] || '').toString() !== '휴가') continue; // G 문서종류
-    if ((v[i][11] || '').toString() !== '승인') continue; // L 결재결과
-    const paidGubun = (v[i][7] || '').toString();        // H 유급구분
-    let detail = {};
-    try { detail = JSON.parse(v[i][15] || '{}'); } catch (e) { continue; } // P 상세
-    const item = (detail.leaveType || '').toString();
-    const isUnpaid = (paidGubun === '무급') || item.indexOf('(무급)') !== -1 || item === '보건휴가';
-    if (!isUnpaid) continue;
-    const m = (detail.period || '').toString().match(/\d{4}-\d{2}-\d{2}/);
-    if (!m || m[0].slice(0, 7) !== ym) continue;         // 사용날짜가 그 달만
-    const hours = parseFloat(detail.usedHours) || 0;
-    out[empId] = (out[empId] || 0) + hours / 8;          // 시간 → 일
-  }
-  return out;
 }
 
 // =========================================================================
