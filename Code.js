@@ -390,12 +390,6 @@ function getMonthlyHobongInfo(empId, year) {
     return null;
   }
 }
-function addEmployeeWeb(empId, name, grade, hasCert) {
-  const sheet = getActiveSheetByName('직원마스터');
-  sheet.appendRow([empId, name, grade, hasCert ? 'O' : 'X', '', '']);
-  return getHobongData(); 
-}
-
 function addCareerWeb(empId, workplace, start, end, ratio) {
   const sheet = getActiveSheetByName('경력상세');
   let finalEnd = end;
@@ -407,18 +401,6 @@ function addCareerWeb(empId, workplace, start, end, ratio) {
 function deleteCareerWeb(rowIndex) {
   const sheet = getActiveSheetByName('경력상세');
   sheet.deleteRow(rowIndex + 1); 
-  return getHobongData();
-}
-
-function updateCertWeb(empId, hasCert) {
-  const sheet = getActiveSheetByName('직원마스터');
-  const data = sheet.getDataRange().getValues();
-  for(let i = 1; i < data.length; i++) {
-    if(data[i][0].toString() === empId.toString()) {
-      sheet.getRange(i + 1, 4).setValue(hasCert ? 'O' : 'X');
-      break;
-    }
-  }
   return getHobongData();
 }
 
@@ -1968,6 +1950,63 @@ function setupWorkSheets() {
   _ensureSheet_('시간외근로', ['직원ID','이름','연월일','시작시간','종료시간','비고']);
   _ensureSheet_('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간']);
   return { success: true, message: '근태/시간외/휴가 시트 준비 완료' };
+}
+
+// =========================================================================
+// 최초 배포 시 1회 실행: 시스템이 쓰는 모든 시트를 헤더와 함께 만든다.
+// 이미 있는 시트는 건드리지 않는다(첫 셀이 헤더면 통과).
+// =========================================================================
+function setupAllSheets() {
+  const created = [];
+  const mk = function (name, headers) {
+    const ss = SpreadsheetApp.openById(SS_ID);
+    let s = ss.getSheetByName(name);
+    const isNew = !s;
+    if (isNew) s = ss.insertSheet(name);
+    if (s.getRange(1, 1).getValue() !== headers[0]) {
+      s.getRange(1, 1, 1, headers.length).setValues([headers]);
+      s.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#4472c4').setFontColor('#ffffff');
+      s.setFrozenRows(1);
+    }
+    if (isNew) created.push(name);
+  };
+
+  // 인사
+  mk('직원명부', ['직원ID','이름','연락처','긴급연락처','주소','DISC','MBTI','생년월일','팀이름','직급',
+    '권한','이메일','서명','급수','현재호봉','다음승급예정월','자격증','자격증급수','자격증취득일',
+    '운전면허증','운전가능여부','입사일','퇴사일','재직중']);
+  mk('호봉관리', ['직원ID','이름','급수','현재호봉','다음승급예정월','자격증','자격증급수','자격증취득일','직급']);
+  mk('경력상세', ['직원ID','근무처명','입사일','퇴사일','환산율']);
+
+  // 근태·휴가 (거래)
+  mk('근태기록', ['직원ID','이름','연월일','출근시간','퇴근시간']);
+  mk('시간외근로', ['직원ID','이름','연월일','시작시간','종료시간','비고']);
+  mk('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간']);
+  mk('휴가대장', ['직원ID','이름','부여일자','적용연도','항목','부여일수','사유/비고','등록자']);
+  mk('연차촉진', ['직원ID','이름','연도','차수','발송일시','미사용시간','지정일','비고']);
+  mk('잔여캐시', ['직원ID','이름','잔여JSON','갱신시각']);
+
+  // 정책·기준
+  mk('기본급', ['급수','호봉','금액','연도']);
+  mk('제수당', ['연도','수당명','지급월','금액','비고']);
+  mk('연봉표', ['연도','직원ID','이름','급수','호봉','기본급','정액급식비','관리자수당']);
+  mk('개인연봉설정', ['직원ID','이름','연도','기본급','제수당']);
+  mk('개인수당설정', ['직원ID','이름','연도','설정데이터']);
+  mk('간이세액표', INCOME_TAX_HEADER);
+  mk('세금·퇴직금', ['연도','항목','비율(%)']);
+  mk('공휴일', ['날짜','명칭']);
+
+  // 예산
+  mk('인건비예산_보조금', ['연도','직원ID','이름','직급','승급월',
+    '승급전호봉','승급전단가','승급전근무월','승급후호봉','승급후단가','승급후근무월','기본급계',
+    '명절휴가비','가족대상인원','가족수당합계','가족세부내역','연관리자수당','연정액급식비',
+    '시간외단가','시간외근무시간','시간외합계','총인건비','퇴직금충당금',
+    '건강보험','장기요양','국민연금','고용보험','산재보험','보험료합계','복지포인트']);
+
+  // 월급표 (동적 헤더)
+  initMonthlySalarySheet();
+
+  return { success: true, message: '전체 시트 준비 완료. 새로 만든 시트: ' + (created.length ? created.join(', ') : '없음 (모두 존재)') };
 }
 
 function _ensureSheet_(name, headers) {
