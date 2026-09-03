@@ -97,7 +97,9 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
   - [x] **D. 공휴일** — `getHolidays`/`saveHolidays`(그 해 교체) + `fetchKoreanHolidays`(구글 '대한민국 공휴일' 공개 캘린더, `CalendarApp`, 저장 안 함). 프론트 '설정 > 공휴일' 탭: 연도 선택 + [구글 캘린더에서 가져오기] + 행 편집/추가/삭제 + 저장. 시트 `공휴일` A날짜 B명칭 (`av_isWorkday`는 A만 봄). **CalendarApp 스코프 추가 → 재승인 필요**
 - [x] **F. SETUP.md** — 배포 절차(clasp/수동 방식) + CONFIG + `setupAllSheets` + 배포 + 정책데이터 입력 + 직원등록 + 트리거 + 매월운영
 - [x] **G. 스프레드시트 부트스트랩** — `setupAllSheets()`: 인사(직원명부 24열·호봉관리·경력상세) + 근태·휴가 + 정책 + 예산 + 월급표 전 시트를 헤더와 함께 생성(있으면 통과). 죽은 `직원마스터` 함수(`addEmployeeWeb`/`updateCertWeb`) 삭제. 검증 시드는 `~/welfare-erp-test/seed.js`(`seedTestData`)
-- [ ] **레거시 정리(별도)** — `uploadBasicSalaryData`/`getSalaryFromTable`/`calculateAnnualSalary`/`getSettings`(UserProperties 계열) + 프론트 `_handleBasicSalaryUpload`/`_parseBasicSalaryData` 죽은 코드 제거
+- [x] **레거시 정리** — `getSettings`/`saveSettings`/`loadSettings`/`uploadBasicSalaryData`/`getBasicSalaryData`/`getSalaryFromTable`/`calculateAnnualSalary`/`getAllowancesByYear`/`getFamilyAllowances` + 프론트 `_handleBasicSalaryUpload`/`_parseBasicSalaryData`·`basicSalaryData`/`basicSalaryUploadStatus` 삭제 (전부 호출처 없던 코드)
+
+**A~G + 레거시 정리 완료.** 남은 건 배포 후 실동작 검증(아래)뿐.
 
 ## 테스트 배포 (`~/welfare-erp-test/`)
 
