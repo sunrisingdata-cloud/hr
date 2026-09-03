@@ -128,7 +128,12 @@
         taxYear: { type: Number },
         taxForm: { type: Object },
         taxItems: { type: Array },
-        taxStandard: { type: Object }
+        taxStandard: { type: Object },
+        bsYear: { type: String },
+        bsGrades: { type: Array },
+        bsRows: { type: Array },
+        bsPasteText: { type: String },
+        bsMsg: { type: String }
       };
 
       _loadHobongStatus() {
@@ -541,6 +546,11 @@
         this.taxForm = {};
         this.taxItems = [];
         this.taxStandard = {};
+        this.bsYear = '';
+        this.bsGrades = [];
+        this.bsRows = [];
+        this.bsPasteText = '';
+        this.bsMsg = '';
         this.settingsYear = new Date().getFullYear();
         
         this._settingsLoaded = false;
@@ -2298,6 +2308,101 @@
         this.activeTab = screen;
         if (screen === 'salary-settings') this._loadSettingsByYear();
         if (screen === 'tax-rates') this._loadTaxRates();
+        if (screen === 'basic-salary') this._loadBasicSalary();
+      }
+
+      // ===== 기본급표 =====
+      _loadBasicSalary() {
+        google.script.run.withSuccessHandler((res) => {
+          res = res || {};
+          this.bsGrades = res.grades || [];
+          this.bsRows = res.rows || [];
+          this.bsMsg = '';
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+        }).getBasicSalaryTable(this.bsYear || '');
+      }
+
+      _bsParseMatrix(matrix) {
+        if (!matrix || matrix.length < 2) return null;
+        const grades = matrix[0].slice(1).map(g => (g == null ? '' : g).toString().trim()).filter(Boolean);
+        if (!grades.length) return null;
+        const rows = [];
+        for (let i = 1; i < matrix.length; i++) {
+          const r = matrix[i];
+          if (!r) continue;
+          const hobon = (r[0] == null ? '' : r[0].toString()).replace(/\D/g, '');
+          if (!hobon) continue;
+          const amounts = {};
+          for (let c = 0; c < grades.length; c++) {
+            const amt = parseFloat((r[c + 1] == null ? '' : r[c + 1].toString()).replace(/[,\s원]/g, ''));
+            if (!isNaN(amt) && amt > 0) amounts[grades[c]] = amt;
+          }
+          rows.push({ hobon: parseInt(hobon, 10), amounts });
+        }
+        return { grades, rows };
+      }
+
+      _bsApplyPaste() {
+        const text = (this.bsPasteText || '').trim();
+        if (!text) { alert('붙여넣을 표가 없습니다.'); return; }
+        const matrix = text.split(/\r?\n/).map(line => (line.indexOf('\t') !== -1 ? line.split('\t') : line.split(',')).map(c => c.trim()));
+        const parsed = this._bsParseMatrix(matrix);
+        if (!parsed) { this.bsMsg = '❌ 표를 읽지 못했습니다. 첫 행=급수, 첫 열=호봉 형식인지 확인하세요.'; this.requestUpdate(); return; }
+        this.bsGrades = parsed.grades;
+        this.bsRows = parsed.rows;
+        this.bsMsg = `📋 ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음. 확인 후 [저장].`;
+        this.requestUpdate();
+      }
+
+      _bsHandleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', raw: false });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+            const parsed = this._bsParseMatrix(matrix);
+            if (!parsed) { this.bsMsg = '❌ 표를 읽지 못했습니다. 첫 행=급수, 첫 열=호봉 형식인지 확인하세요.'; this.requestUpdate(); return; }
+            this.bsGrades = parsed.grades;
+            this.bsRows = parsed.rows;
+            this.bsMsg = `📄 ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음. 확인 후 [저장].`;
+            this.requestUpdate();
+          } catch (err) {
+            this.bsMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.requestUpdate();
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      _saveBasicSalary() {
+        if (!this.bsRows || !this.bsRows.length) { alert('먼저 표를 붙여넣거나 파일을 올리세요.'); return; }
+        const flat = [];
+        this.bsRows.forEach(row => {
+          this.bsGrades.forEach(g => {
+            const amt = row.amounts ? row.amounts[g] : null;
+            if (amt != null && amt !== '') flat.push({ grade: g, hobon: row.hobon, amount: amt });
+          });
+        });
+        const scope = this.bsYear ? `${this.bsYear}년` : '연도 공통';
+        if (!confirm(`기본급표 ${flat.length}행을 저장합니다 (${scope}).\n같은 스코프의 기존 행은 교체됩니다. 계속할까요?`)) return;
+        this.isLoading = true;
+        this.loadingMsg = '기본급표 저장 중...';
+        google.script.run.withSuccessHandler((res) => {
+          this.isLoading = false;
+          this.bsMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.bsPasteText = '';
+          if (res && res.success) this._loadBasicSalary();
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          this.isLoading = false;
+          this.bsMsg = '❌ 저장 실패: ' + (err && err.message ? err.message : err);
+          this.requestUpdate();
+        }).saveBasicSalary(JSON.stringify(flat), this.bsYear || '');
       }
 
       _loadTaxRates() {
@@ -3205,6 +3310,7 @@
             ${this.expandConfig ? html`
               <div style="margin-bottom: 12px;">
                 <div class="nav-item ${this.activeTab === 'policy-tables' ? 'active' : ''}" @click="${() => { this.activeTab = 'policy-tables'; this._loadPolicyInfo(); }}">📋 정책·기준표</div>
+                <div class="nav-item ${this.activeTab === 'basic-salary' ? 'active' : ''}" @click="${() => { this.activeTab = 'basic-salary'; this._loadBasicSalary(); }}">💵 기본급표</div>
                 <div class="nav-item ${this.activeTab === 'tax-rates' ? 'active' : ''}" @click="${() => { this.activeTab = 'tax-rates'; this._loadTaxRates(); }}">🧮 세금·퇴직금 요율</div>
               </div>
             ` : ''}
@@ -4199,6 +4305,55 @@
                     ※ 세금·퇴직금 요율은 아래 "이 앱에서 편집" 으로 입력할 수 있다. 기본급 붙여넣기·간이세액표 업로드·공휴일 자동 채우기는 이후 단계에서 추가된다.
                   </p>
                 `}
+              </div>
+            ` : ''}
+
+            ${this.activeTab === 'basic-salary' ? html`
+              <div>
+                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">💵 기본급표</h2>
+                <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
+                  급수·호봉별 월 기본급. 지자체·법인 임금테이블을 <strong>엑셀에서 복사해 붙여넣기</strong>하거나 파일로 올린다.
+                  형식: <strong>첫 행 = 급수 이름</strong>(첫 칸은 비움/‘호봉’), <strong>첫 열 = 호봉 숫자</strong>, 칸 = 금액.
+                </p>
+
+                <div class="card" style="margin-bottom:20px;">
+                  <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px;">
+                    <div>
+                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">적용 연도</label>
+                      <select @change="${(e) => { this.bsYear = e.target.value; this._loadBasicSalary(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                        <option value="" ?selected="${!this.bsYear}">연도 공통 (모든 연도)</option>
+                        ${[0,1,2,-1].map(d => new Date().getFullYear() + d).map(y => html`<option value="${y}" ?selected="${this.bsYear == y}">${y}년</option>`)}
+                      </select>
+                    </div>
+                    <div class="file-input-wrapper">
+                      <label class="file-input-label" for="bsFile">📁 엑셀 파일</label>
+                      <input type="file" id="bsFile" accept=".csv,.xlsx,.xls" @change="${(e) => this._bsHandleFile(e)}">
+                    </div>
+                  </div>
+                  <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">또는 엑셀에서 복사한 표를 붙여넣기</label>
+                  <textarea .value="${this.bsPasteText || ''}" @input="${(e) => this.bsPasteText = e.target.value}" rows="6"
+                    placeholder="엑셀에서 표(급수 헤더 + 호봉 행)를 그대로 복사해 여기에 붙여넣으세요. 예) 첫 줄: (빈칸) 1급 2급 3급 / 다음 줄: 1 1730000 1810000 1900000"
+                    style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:monospace; font-size:13px;"></textarea>
+                  <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                    <button class="btn btn-outline" @click="${() => this._bsApplyPaste()}">붙여넣기 읽기</button>
+                    <button class="btn btn-primary" @click="${() => this._saveBasicSalary()}" ?disabled="${!this.bsRows || !this.bsRows.length}">💾 저장</button>
+                  </div>
+                  ${this.bsMsg ? html`<div style="margin-top:14px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.bsMsg}</div>` : ''}
+                </div>
+
+                ${this.bsRows && this.bsRows.length ? html`
+                  <div class="card" style="padding:0; overflow:auto;">
+                    <table style="font-size:13px;">
+                      <thead><tr><th style="position:sticky; left:0; background:#f1f5f9;">호봉</th>${(this.bsGrades || []).map(g => html`<th style="text-align:right; white-space:nowrap;">${g}</th>`)}</tr></thead>
+                      <tbody>
+                        ${this.bsRows.map(row => html`<tr>
+                          <td style="font-weight:600; position:sticky; left:0; background:white;">${row.hobon}</td>
+                          ${(this.bsGrades || []).map(g => html`<td style="text-align:right; ${row.amounts && row.amounts[g] != null ? '' : 'color:#cbd5e1;'}">${row.amounts && row.amounts[g] != null ? Number(row.amounts[g]).toLocaleString() : '-'}</td>`)}
+                        </tr>`)}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : html`<div class="card"><p style="text-align:center; color:#64748b; padding:36px;">저장된 기본급표가 없습니다. 표를 붙여넣거나 파일을 올리세요.</p></div>`}
               </div>
             ` : ''}
 
