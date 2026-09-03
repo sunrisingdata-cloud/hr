@@ -103,9 +103,16 @@
         settingsYear: { type: Number },
         expandAttendance: { type: Boolean },
         attEmpName: { type: String },
+        luEmpName: { type: String },
         attFrom: { type: String },
         attTo: { type: String },
         attData: { type: Object },
+        attRecData: { type: Object },
+        leaveUseData: { type: Object },
+        wsKind: { type: String },
+        wsFileName: { type: String },
+        wsPreview: { type: Array },
+        wsMsg: { type: String },
         lgYear: { type: Number },
         lgEmpId: { type: String },
         lgData: { type: Array },
@@ -114,9 +121,6 @@
         lgBalMode: { type: String },
         lgBalEmpId: { type: String },
         lgAllBalance: { type: Array },
-        attFileName: { type: String },
-        attImportMsg: { type: String },
-        attPreview: { type: Array },
         expandLeave: { type: Boolean },
         expandBudget: { type: Boolean }
       };
@@ -529,6 +533,15 @@
         
         this._settingsLoaded = false;
         this.appConfig = { orgName: '', appTitle: '통합관리시스템' };
+        this.attEmpName = '전체';
+        this.luEmpName = '전체';
+        this.attData = null;
+        this.attRecData = null;
+        this.leaveUseData = null;
+        this.wsKind = '';
+        this.wsFileName = '';
+        this.wsPreview = null;
+        this.wsMsg = '';
       }
 
       firstUpdated() {
@@ -2860,59 +2873,189 @@
         return ['연차휴가', '대체휴무', '가족돌봄휴가', '가족기념일', '건강검진휴가', '보건휴가', '장기근속휴가', '병가', '기타'];
       }
 
-      _handleAttFile(e) {
+      // ===== 엑셀 업로드 (근태기록 / 시간외근로 / 휴가기록 공통) =====
+      get _wsSpec() {
+        return {
+          att:   { label: '근태기록', server: 'importAttendanceExcel',
+                   fields: { empId: ['직원id','사번','id'], name: ['이름','성명'], date: ['연월일','날짜','일자'],
+                             checkIn: ['출근시간','출근'], checkOut: ['퇴근시간','퇴근'] },
+                   cols: ['직원ID','이름','연월일','출근시간','퇴근시간'] },
+          ot:    { label: '시간외근로', server: 'importOvertimeExcel',
+                   fields: { empId: ['직원id','사번','id'], name: ['이름','성명'], date: ['연월일','날짜','일자'],
+                             start: ['시작시간','시작'], end: ['종료시간','종료'], note: ['비고','사유'] },
+                   cols: ['직원ID','이름','연월일','시작시간','종료시간','비고'] },
+          leave: { label: '휴가기록', server: 'importLeaveExcel',
+                   fields: { empId: ['직원id','사번','id'], name: ['이름','성명'], date: ['연월일','날짜','일자'],
+                             leaveType: ['휴가종류','종류'], hours: ['사용시간','시간'] },
+                   cols: ['직원ID','이름','연월일','휴가종류','사용시간'] },
+        };
+      }
+
+      _wsNorm(s) { return (s == null ? '' : s).toString().trim().toLowerCase().replace(/\s+/g, ''); }
+
+      _wsHandleFile(kind, e) {
         const file = e.target.files[0];
         if (!file) return;
-        this.attFileName = file.name;
-        this.attImportMsg = '';
-        this.attPreview = null;
+        const spec = this._wsSpec[kind];
+        this.wsKind = kind;
+        this.wsFileName = file.name;
+        this.wsMsg = '';
+        this.wsPreview = null;
         const reader = new FileReader();
         reader.onload = (ev) => {
           try {
             const data = new Uint8Array(ev.target.result);
-            const wb = XLSX.read(data, { type: 'array', raw: true });
+            const wb = XLSX.read(data, { type: 'array', raw: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
-            const arr = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
-            // 헤더 1행 제외. 열: 1=ID, 2=날짜, 6=출근, 7=퇴근 (1-based)
+            const arr = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+            if (!arr.length) { this.wsMsg = '❌ 빈 파일입니다.'; this.requestUpdate(); return; }
+            // 헤더 → 필드별 열 인덱스
+            const header = (arr[0] || []).map(h => this._wsNorm(h));
+            const colOf = {};
+            Object.keys(spec.fields).forEach(f => {
+              for (const alias of spec.fields[f]) {
+                const i = header.indexOf(this._wsNorm(alias));
+                if (i !== -1) { colOf[f] = i; break; }
+              }
+            });
+            if (colOf.empId == null || colOf.date == null) {
+              this.wsMsg = '❌ 헤더에 "직원ID"·"연월일" 열이 필요합니다. (첫 행이 헤더)';
+              this.requestUpdate(); return;
+            }
             const rows = [];
             for (let i = 1; i < arr.length; i++) {
-              const r = arr[i];
-              if (!r || !r[0]) continue;
-              rows.push({
-                devId: (r[0] || '').toString().trim(),
-                date: (r[1] || '').toString().trim(),
-                name: (r[2] || '').toString().trim(),
-                checkIn: (r[5] || '').toString().trim(),
-                checkOut: (r[6] || '').toString().trim()
-              });
+              const r = arr[i]; if (!r) continue;
+              const get = (f) => colOf[f] != null ? (r[colOf[f]] == null ? '' : r[colOf[f]].toString().trim()) : '';
+              if (!get('empId') && !get('date')) continue;
+              const o = {};
+              Object.keys(spec.fields).forEach(f => o[f] = get(f));
+              rows.push(o);
             }
-            if (!rows.length) { this.attImportMsg = '❌ 읽을 데이터가 없습니다.'; this.requestUpdate(); return; }
-            this.attPreview = rows;
-            this.attImportMsg = `📄 ${rows.length}건 읽음. 확인 후 [근태기록에 반영]을 누르세요.`;
+            if (!rows.length) { this.wsMsg = '❌ 읽을 데이터가 없습니다.'; this.requestUpdate(); return; }
+            this.wsPreview = rows;
+            this.wsMsg = `📄 ${rows.length}건 읽음. 확인 후 [${spec.label}에 반영]을 누르세요.`;
             this.requestUpdate();
           } catch (err) {
-            this.attImportMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.wsMsg = '❌ 파일 읽기 실패: ' + err.message;
             this.requestUpdate();
           }
         };
         reader.readAsArrayBuffer(file);
       }
 
-      _importAttendance() {
-        if (!this.attPreview || !this.attPreview.length) { alert('먼저 CSV 파일을 선택하세요.'); return; }
-        if (!confirm(`${this.attPreview.length}건을 근태기록에 반영합니다. (같은 날짜·직원은 덮어씁니다) 계속할까요?`)) return;
+      _wsImport() {
+        const kind = this.wsKind;
+        const spec = this._wsSpec[kind];
+        if (!this.wsPreview || !this.wsPreview.length) { alert('먼저 파일을 선택하세요.'); return; }
+        if (!confirm(`${this.wsPreview.length}건을 ${spec.label}에 반영합니다.\n같은 직원·날짜는 덮어씁니다. 계속할까요?`)) return;
         this.isLoading = true;
-        this.loadingMsg = '근태기록 반영 중...';
-        const payload = this.attPreview.map(r => ({ devId: r.devId, date: r.date, checkIn: r.checkIn, checkOut: r.checkOut }));
+        this.loadingMsg = spec.label + ' 반영 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          this.attImportMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.wsMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.wsPreview = null;
+          this.wsFileName = '';
           this.requestUpdate();
+          if (kind === 'att') this._loadAttRecords();
+          if (kind === 'ot') this._loadOvertime();
+          if (kind === 'leave') { this._loadLeaveUsage(); this._loadAllBalance(); }
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.attImportMsg = '❌ 반영 실패: ' + (err && err.message ? err.message : err);
+          this.wsMsg = '❌ 반영 실패: ' + (err && err.message ? err.message : err);
           this.requestUpdate();
-        }).importAttendanceRows(JSON.stringify(payload));
+        })[spec.server](JSON.stringify(this.wsPreview));
+      }
+
+      _loadAttRecords() {
+        this._attDefaultRange();
+        this.isLoading = true;
+        this.loadingMsg = '근태 현황 불러오는 중...';
+        const filters = { empName: this.attEmpName || '전체', from: this.attFrom, to: this.attTo };
+        google.script.run.withSuccessHandler((data) => {
+          this.attRecData = data || { rows: [], summary: { count: 0, missingCount: 0, totalHours: 0 } };
+          this.isLoading = false;
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+          this.isLoading = false;
+        }).getAttendanceRecords(filters);
+      }
+
+      _loadLeaveUsage() {
+        this._attDefaultRange();
+        this.isLoading = true;
+        this.loadingMsg = '휴가 사용 내역 불러오는 중...';
+        const filters = { empName: this.luEmpName || '전체', from: this.attFrom, to: this.attTo };
+        google.script.run.withSuccessHandler((data) => {
+          this.leaveUseData = data || { rows: [], summary: { count: 0, totalHours: 0, totalDays: 0 } };
+          this.isLoading = false;
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+          this.isLoading = false;
+        }).getLeaveUsageRecords(filters);
+      }
+
+      _wsUploadCard(kind) {
+        const spec = this._wsSpec[kind];
+        const active = this.wsKind === kind;
+        return html`
+          <div class="card" style="margin-bottom:24px;">
+            <h3 style="margin-top:0; color:#0f172a; margin-bottom:12px; padding-bottom:12px; border-bottom:2px solid #e2e8f0;">엑셀 업로드</h3>
+            <p style="color:#64748b; font-size:13px; margin:0 0 8px;">
+              첫 행을 헤더로 하는 엑셀(.xlsx/.csv)을 올리면 <strong>${spec.label}</strong> 시트에 반영됩니다.
+              열: ${spec.cols.join(' · ')} · 같은 직원·날짜는 덮어씁니다.
+            </p>
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+              <div class="file-input-wrapper">
+                <label class="file-input-label" for="wsFile_${kind}">📁 파일 선택</label>
+                <input type="file" id="wsFile_${kind}" accept=".csv,.xlsx,.xls" @change="${(e) => this._wsHandleFile(kind, e)}">
+              </div>
+              ${active && this.wsFileName ? html`<span style="color:#475569; font-size:13px;">📄 ${this.wsFileName}</span>` : ''}
+              <button class="btn btn-primary" @click="${() => this._wsImport()}" ?disabled="${!active || !this.wsPreview || !this.wsPreview.length}" style="padding:12px 24px;">${spec.label}에 반영</button>
+            </div>
+            ${active && this.wsMsg ? html`<div style="margin-top:14px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.wsMsg}</div>` : ''}
+            ${active && this.wsPreview && this.wsPreview.length ? html`
+              <div style="margin-top:16px; max-height:320px; overflow-y:auto;">
+                <table>
+                  <thead><tr>${spec.cols.map(c => html`<th>${c}</th>`)}</tr></thead>
+                  <tbody>
+                    ${this.wsPreview.slice(0, 100).map(r => html`<tr>
+                      <td>${r.empId || '-'}</td><td>${r.name || '-'}</td><td>${r.date || '-'}</td>
+                      ${kind === 'att' ? html`<td>${r.checkIn || '-'}</td><td>${r.checkOut || '-'}</td>` : ''}
+                      ${kind === 'ot' ? html`<td>${r.start || '-'}</td><td>${r.end || '-'}</td><td>${r.note || '-'}</td>` : ''}
+                      ${kind === 'leave' ? html`<td>${r.leaveType || '-'}</td><td>${r.hours || '(종일)'}</td>` : ''}
+                    </tr>`)}
+                  </tbody>
+                </table>
+                ${this.wsPreview.length > 100 ? html`<p style="color:#94a3b8; font-size:13px; margin-top:12px;">※ 처음 100건만 표시 (반영은 전체 ${this.wsPreview.length}건)</p>` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      _attFilterCard(loadFn, empProp) {
+        return html`
+          <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+            <div>
+              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
+              <select @change="${(e) => this[empProp] = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:180px; box-sizing:border-box;">
+                <option value="전체" ?selected="${(this[empProp] || '전체') === '전체'}">전체 직원</option>
+                ${(this.allEmployees || []).map(emp => html`<option value="${emp.name}" ?selected="${this[empProp] === emp.name}">${emp.name}</option>`)}
+              </select>
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">시작일</label>
+              <input type="date" .value="${this.attFrom || ''}" @change="${(e) => this.attFrom = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">종료일</label>
+              <input type="date" .value="${this.attTo || ''}" @change="${(e) => this.attTo = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+            </div>
+            <button class="btn btn-primary" @click="${() => loadFn()}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
+          </div>
+        `;
       }
 
       render() {
@@ -2945,8 +3088,8 @@
             </div>
             ${this.expandAttendance ? html`
               <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'attendance-record' ? 'active' : ''}" @click="${() => { this.activeTab = 'attendance-record'; }}">🕘 근태현황</div>
-                <div class="nav-item ${this.activeTab === 'ot-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'ot-status'; this._loadOvertime(); }}">⏰ 시간외근무현황</div>
+                <div class="nav-item ${this.activeTab === 'attendance-record' ? 'active' : ''}" @click="${() => { this.activeTab = 'attendance-record'; this.wsKind = ''; this._loadAttRecords(); }}">🕘 근태현황</div>
+                <div class="nav-item ${this.activeTab === 'ot-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'ot-status'; this.wsKind = ''; this._loadOvertime(); }}">⏰ 시간외근무현황</div>
               </div>
             ` : ''}
 
@@ -2958,7 +3101,7 @@
             ${this.expandLeave ? html`
               <div style="margin-bottom: 12px;">
                 <div class="nav-item ${this.activeTab === 'leave-grant' ? 'active' : ''}" @click="${() => { this.activeTab = 'leave-grant'; if (!this.lgItems) this._loadLeaveGrantItems(); if (!this.lgYear) this.lgYear = new Date().getFullYear(); }}">🌴 휴가부여</div>
-                <div class="nav-item ${this.activeTab === 'leave-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'leave-status'; if (!this.lgYear) this.lgYear = new Date().getFullYear(); this._loadAllBalance(); }}">📊 휴가현황</div>
+                <div class="nav-item ${this.activeTab === 'leave-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'leave-status'; this.wsKind = ''; if (!this.lgYear) this.lgYear = new Date().getFullYear(); this._loadAllBalance(); this._loadLeaveUsage(); }}">📊 휴가현황</div>
               </div>
             ` : ''}
 
@@ -3803,68 +3946,40 @@
               <div>
                 <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">🕘 근태현황</h2>
 
-                <div class="card" style="margin-bottom:24px;">
-                  <h3 style="margin-top:0; color:#0f172a; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #e2e8f0;">근태 CSV 업로드</h3>
-                  <p style="color:#64748b; font-size:13px; margin-top:0;">근태기록기에서 받은 CSV를 선택하면 근태기록 시트에 반영됩니다. 같은 날짜·직원은 덮어씁니다. (직원 매칭: 직원명부 Z열 근태기기ID)</p>
-                  <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px;">
-                    <div class="file-input-wrapper">
-                      <label class="file-input-label" for="attCsvFile">📁 CSV 파일 선택</label>
-                      <input type="file" id="attCsvFile" accept=".csv,.xlsx,.xls" @change="${this._handleAttFile}">
-                    </div>
-                    ${this.attFileName ? html`<span style="color:#475569; font-size:13px;">📄 ${this.attFileName}</span>` : ''}
-                    <button class="btn btn-primary" @click="${() => this._importAttendance()}" ?disabled="${!this.attPreview || !this.attPreview.length}" style="padding:12px 24px;">근태기록에 반영</button>
-                  </div>
-                  ${this.attImportMsg ? html`<div style="margin-top:16px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.attImportMsg}</div>` : ''}
-                </div>
+                ${this._wsUploadCard('att')}
+                ${this._attFilterCard(() => this._loadAttRecords(), 'attEmpName')}
 
-                ${this.attPreview && this.attPreview.length ? html`
-                  <div class="card">
-                    <h3 style="margin-top:0; color:#0f172a; margin-bottom:16px;">미리보기 (${this.attPreview.length}건)</h3>
-                    <div style="max-height:420px; overflow-y:auto;">
-                      <table>
-                        <thead>
-                          <tr><th>기기ID</th><th>이름</th><th>날짜</th><th>출근</th><th>퇴근</th></tr>
-                        </thead>
-                        <tbody>
-                          ${this.attPreview.slice(0, 100).map(r => html`
-                            <tr>
-                              <td>${r.devId}</td>
-                              <td>${r.name || '-'}</td>
-                              <td>${r.date}</td>
-                              <td style="color:${r.checkIn ? '#0f172a' : '#dc2626'};">${r.checkIn || '미기입'}</td>
-                              <td style="color:${r.checkOut ? '#0f172a' : '#dc2626'};">${r.checkOut || '미기입'}</td>
-                            </tr>
-                          `)}
-                        </tbody>
-                      </table>
-                    </div>
-                    ${this.attPreview.length > 100 ? html`<p style="color:#94a3b8; font-size:13px; margin-top:12px;">※ 처음 100건만 표시 (반영은 전체 ${this.attPreview.length}건)</p>` : ''}
+                ${this.attRecData ? html`
+                  <div class="card" style="margin-bottom:20px; display:flex; gap:32px; flex-wrap:wrap;">
+                    <div><div style="font-size:13px; color:#64748b;">건수</div><div style="font-size:22px; font-weight:700; color:#0f172a;">${(this.attRecData.summary && this.attRecData.summary.count) || 0}건</div></div>
+                    <div><div style="font-size:13px; color:#64748b;">총 근로시간</div><div style="font-size:22px; font-weight:700; color:#0f766e;">${(this.attRecData.summary && this.attRecData.summary.totalHours) || 0}시간</div></div>
+                    <div><div style="font-size:13px; color:#64748b;">미기입</div><div style="font-size:22px; font-weight:700; color:#dc2626;">${(this.attRecData.summary && this.attRecData.summary.missingCount) || 0}건</div></div>
                   </div>
-                ` : ''}
+                  <div class="card" style="padding:0; overflow:hidden;">
+                    <table>
+                      <thead><tr><th>날짜</th><th>직원</th><th>출근</th><th>퇴근</th><th>근로시간</th></tr></thead>
+                      <tbody>
+                        ${(this.attRecData.rows || []).length ? (this.attRecData.rows || []).map(r => html`
+                          <tr>
+                            <td>${r.date || '-'}</td>
+                            <td style="font-weight:500;">${r.name || '-'}</td>
+                            <td style="color:${r.checkIn ? '#0f172a' : '#dc2626'};">${r.checkIn || '미기입'}</td>
+                            <td style="color:${r.checkOut ? '#0f172a' : '#dc2626'};">${r.checkOut || '미기입'}</td>
+                            <td style="white-space:nowrap; ${r.missing ? 'color:#dc2626;' : ''}">${r.missing ? '—' : r.workedHours + '시간'}</td>
+                          </tr>
+                        `) : html`<tr><td colspan="5" style="text-align:center; padding:32px; color:#94a3b8;">조회된 내역이 없습니다.</td></tr>`}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : html`<div class="card"><p style="text-align:center; color:#64748b; padding:40px;">기간을 선택하고 조회를 누르세요.</p></div>`}
               </div>
             ` : ''}
             ${this.activeTab === 'ot-status' ? html`
               <div>
                 <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">⏰ 시간외근무현황</h2>
 
-                <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
-                  <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
-                    <select @change="${(e) => this.attEmpName = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:180px; box-sizing:border-box;">
-                      <option value="전체" ?selected="${(this.attEmpName || '전체') === '전체'}">전체 직원</option>
-                      ${(this.allEmployees || []).map(emp => html`<option value="${emp.name}" ?selected="${this.attEmpName === emp.name}">${emp.name}</option>`)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">시작일</label>
-                    <input type="date" .value="${this.attFrom || ''}" @change="${(e) => this.attFrom = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
-                  </div>
-                  <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">종료일</label>
-                    <input type="date" .value="${this.attTo || ''}" @change="${(e) => this.attTo = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
-                  </div>
-                  <button class="btn btn-primary" @click="${() => this._loadOvertime()}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
-                </div>
+                ${this._wsUploadCard('ot')}
+                ${this._attFilterCard(() => this._loadOvertime(), 'attEmpName')}
 
                 ${this.attData ? html`
                   <div class="card" style="margin-bottom:20px; display:flex; gap:32px; flex-wrap:wrap;">
@@ -3899,6 +4014,33 @@
               <div>
                 <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">📊 휴가현황</h2>
 
+                ${this._wsUploadCard('leave')}
+
+                <h3 style="color:#0f172a; margin:28px 0 12px;">휴가 사용 내역</h3>
+                ${this._attFilterCard(() => this._loadLeaveUsage(), 'luEmpName')}
+                ${this.leaveUseData ? html`
+                  <div class="card" style="margin-bottom:20px; display:flex; gap:32px; flex-wrap:wrap;">
+                    <div><div style="font-size:13px; color:#64748b;">건수</div><div style="font-size:22px; font-weight:700; color:#0f172a;">${(this.leaveUseData.summary && this.leaveUseData.summary.count) || 0}건</div></div>
+                    <div><div style="font-size:13px; color:#64748b;">사용 합계</div><div style="font-size:22px; font-weight:700; color:#0f766e;">${(this.leaveUseData.summary && this.leaveUseData.summary.totalDays) || 0}일 (${(this.leaveUseData.summary && this.leaveUseData.summary.totalHours) || 0}시간)</div></div>
+                  </div>
+                  <div class="card" style="padding:0; overflow:hidden; margin-bottom:28px;">
+                    <table>
+                      <thead><tr><th>날짜</th><th>직원</th><th>휴가종류</th><th>사용시간</th></tr></thead>
+                      <tbody>
+                        ${(this.leaveUseData.rows || []).length ? (this.leaveUseData.rows || []).map(r => html`
+                          <tr>
+                            <td>${r.date || '-'}</td>
+                            <td style="font-weight:500;">${r.name || '-'}</td>
+                            <td style="color:#475569;">${r.leaveType || '-'}</td>
+                            <td style="white-space:nowrap;">${r.hours}시간${r.hours === 8 ? ' (종일)' : (r.hours === 4 ? ' (반차)' : '')}</td>
+                          </tr>
+                        `) : html`<tr><td colspan="4" style="text-align:center; padding:32px; color:#94a3b8;">조회된 내역이 없습니다.</td></tr>`}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : ''}
+
+                <h3 style="color:#0f172a; margin:28px 0 12px;">잔여 현황</h3>
                 <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
                   <div>
                     <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
