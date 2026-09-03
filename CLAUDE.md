@@ -13,20 +13,27 @@
 - `index.html` — 프론트엔드 SPA. `LitElement`(lit-all CDN) + `SheetJS`(xlsx CDN). **급여 계산식 상당수가 이 클라이언트 쪽에 있음**
 - `appsscript.json` — 웹앱 설정 (`access: ANYONE`, `executeAs: USER_DEPLOYING`, timeZone `Asia/Seoul`, V8)
 
+## 배포 방식 — 사본 만들기(기본) / clasp
+
+- **방식 1 "사본 만들기"**: 마스터 스프레드시트(바인딩 스크립트)를 `파일 > 사본 만들기`.
+  `CONFIG.SS_ID` 가 비어 있으면(`____` 포함) `SpreadsheetApp.getActiveSpreadsheet()` 로 자동 감지 → 사본이 자기 시트를 씀.
+  기관명은 웹앱 첫 화면 배너에서 입력(→ `setOrgConfig` → 스크립트 속성). `setupAllSheets` 1회 실행.
+- **방식 2 clasp**: `clasp create` → `CONFIG` 채움 → push/deploy. (개발자용)
+- 상세는 `SETUP.md`.
+
 ## 기관별 설정 — `Code.js` 최상단 `CONFIG` 블록
 
-배포 시 이 블록만 수정한다.
+| 키 | 내용 |
+|---|---|
+| `SS_ID` | 스프레드시트 ID. **비우면 바인딩된 시트 자동 사용**(사본 방식). standalone 은 필수 |
+| `ORG_NAME` | 기관명. 메일·재직증명 근무처명. 스크립트 속성 `ORG_NAME` 이 있으면 그게 우선 |
+| `APP_TITLE` | 화면 제목. 스크립트 속성 `APP_TITLE` 우선 |
+| `LEAVE_REQUEST_HINT` | 연차촉진 메일 '휴가 신청 방법' 문구 |
+| `CHATBOT_HINT` | 챗봇 안내 문구. 비우면 미표시 |
 
-| 키 | 필수 | 내용 |
-|---|---|---|
-| `SS_ID` | ✅ | 데이터가 저장된 구글 스프레드시트 ID |
-| `ORG_NAME` | ✅ | 기관명. 메일 제목·서명, 재직증명서용 경력(경력상세 시트) 근무처명 |
-| `APP_TITLE` | | 브라우저 탭·화면 제목 (기본 '통합관리시스템') |
-| `LEAVE_REQUEST_HINT` | | 연차사용촉진 메일의 '휴가 신청 방법' 안내 문구 |
-| `CHATBOT_HINT` | | 잔여휴가 조회 챗봇 안내 문구. 비우면 미표시 |
-
-- `SS_ID` / `ORG_NAME` 은 하위 호환을 위해 전역 상수로도 노출된다 (`const SS_ID = CONFIG.SS_ID`).
-- 프론트엔드는 `getAppConfig()` 서버함수로 `orgName` / `appTitle` 을 받아 `this.appConfig` 에 저장해 쓴다.
+- `SS_ID` 는 IIFE 로 해석 (플레이스홀더면 `getActiveSpreadsheet().getId()`).
+- `ORG_NAME`/`APP_TITLE` 은 `_cfg_()` 로 스크립트 속성 우선. `setOrgConfig(name, title)` 로 설정.
+- 프론트는 `getAppConfig()` → `{orgName, appTitle, configured}`. `configured===false` 면 첫 화면에 설정 배너.
 
 ## 데이터 저장소
 

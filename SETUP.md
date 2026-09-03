@@ -12,76 +12,60 @@
 
 ---
 
-## 1. Apps Script 프로젝트 + 스프레드시트 만들기
+## 방식 1 — "사본 만들기" (권장, 비개발자용)
 
-### A. 개발자 방식 (clasp) — 권장
+### 1-1. 템플릿 사본 만들기
+
+공유받은 **템플릿 스프레드시트** 를 열고 → **파일 → 사본 만들기**.
+스프레드시트와 그 안의 Apps Script 가 통째로 복사된다. 이름을 기관에 맞게 바꾼다.
+
+> 코드의 `CONFIG.SS_ID` 는 비워 두면 **사본이 붙어 있는 스프레드시트를 자동으로** 쓴다. 건드릴 필요 없음.
+
+### 1-2. 웹앱 배포
+
+사본 스프레드시트에서 **확장 프로그램 → Apps Script** → 편집기 우상단 **배포 → 새 배포**
+- 유형: **웹 앱**
+- 실행 계정: **나**
+- 액세스 권한: 내부용이면 **조직 내 모든 사용자**, 필요하면 더 좁게
+
+첫 배포 시 권한 승인: 계정 선택 → **고급 → (안전하지 않음) 이동 → 허용**
+(SpreadsheetApp·MailApp·ScriptApp·CalendarApp 스코프)
+
+나온 웹앱 URL 을 담당자에게 공유.
+
+### 1-3. 기관명 입력
+
+웹앱을 처음 열면 상단에 **"기관 설정을 완료하세요"** 배너가 뜬다.
+→ 기관명 입력 → 저장. (메일 제목·서명, 재직증명서 근무처명에 쓰임)
+
+### 1-4. 시트 만들기 — `setupAllSheets` 1회
+
+편집기 함수 목록에서 **`setupAllSheets`** 선택 → **▶ 실행** → 필요한 탭이 전부 생성된다.
+
+---
+
+## 방식 2 — clasp (개발자용)
 
 ```bash
 git clone https://github.com/sunrisingdata-cloud/welfare-erp.git
 cd welfare-erp
-clasp login                              # 운영할 구글 계정으로 로그인
+clasp login
 clasp create --type sheets --title "○○기관 통합관리"
-clasp push
 ```
 
-`clasp create` 출력에 나오는 **스프레드시트 ID**(`Created new document: .../open?id=여기`)를 적어 둔다.
+`Code.js` 맨 위 `CONFIG` 에서 `SS_ID`(clasp create 출력의 스프레드시트 ID)·`ORG_NAME` 을 채운다.
+그다음:
 
-### B. 수동 방식 (clasp 없이)
-
-1. [sheets.new](https://sheets.new) 로 빈 스프레드시트 생성 → 이름 지정. URL 의 `/d/` 와 `/edit` 사이 문자열이 **스프레드시트 ID**.
-2. 그 스프레드시트에서 **확장 프로그램 → Apps Script**.
-3. 편집기에서 기본 `Code.gs` 내용을 지우고 `Code.js` 전체를 붙여넣기.
-4. **＋ → HTML** 로 `index` 파일 생성 → `index.html` 전체를 붙여넣기.
-5. `appsscript.json` 이 안 보이면 편집기 **설정(⚙) → "appsscript.json 매니페스트 파일 표시"** 체크 → 내용을 이 저장소 것으로 교체.
-
----
-
-## 2. 기관 설정 (`CONFIG` 블록)
-
-`Code.js`(또는 편집기 `Code.gs`) 맨 위 `CONFIG` 블록만 고친다.
-
-```js
-const CONFIG = {
-  SS_ID: '위에서 적어둔 스프레드시트 ID',
-  ORG_NAME: '○○기관',                    // 메일 제목·서명, 경력증명 근무처명
-  APP_TITLE: '○○기관 통합관리',
-  LEAVE_REQUEST_HINT: '연차 사용 시기를 인사담당자에게 알려주시거나, 본 메일에 회신해 주세요.',
-  CHATBOT_HINT: '',                        // 슬랙 챗봇 안 쓰면 비워 둠
-};
-```
-
-수정 후 저장 (수동 방식) 또는 `clasp push` (clasp 방식).
-
----
-
-## 3. 시트 만들기 — `setupAllSheets` 1회 실행
-
-편집기 상단 함수 목록에서 **`setupAllSheets`** 선택 → **▶ 실행**.
-
-- 첫 실행 시 권한 승인 팝업: 계정 선택 → **고급 → (안전하지 않음) 이동 → 허용**
-  (SpreadsheetApp·MailApp·ScriptApp·CalendarApp 스코프)
-- 완료되면 스프레드시트에 필요한 탭이 전부 생긴다.
-
----
-
-## 4. 웹앱 배포
-
-### clasp 방식
 ```bash
+clasp push
 clasp deploy --description "v1"
 ```
-출력의 배포 ID로 웹앱 주소: `https://script.google.com/macros/s/{배포ID}/exec`
 
-### 수동 방식
-편집기 우상단 **배포 → 새 배포 → 유형: 웹 앱**
-- 실행 계정: **나**
-- 액세스 권한: **조직 내 모든 사용자** (또는 필요 범위) — `ANYONE` 은 구글 계정만 있으면 누구나 접근하므로 내부용이면 좁힌다. `appsscript.json` 의 `webapp.access` 로도 조정.
-
-배포 후 나오는 웹앱 URL 을 담당자에게 공유.
+편집기에서 `setupAllSheets` 1회 실행 → 웹앱 URL 공유.
 
 ---
 
-## 5. 정책·기준 데이터 입력
+## 3. 정책·기준 데이터 입력 (방식 1·2 공통)
 
 웹앱 접속 → 좌측 **설정 > 정책·기준표**.
 
@@ -95,7 +79,7 @@ clasp deploy --description "v1"
 
 ---
 
-## 6. 직원 등록
+## 4. 직원 등록
 
 스프레드시트에서 직접 입력하거나, 웹앱 **인사관리 > 인사정보** 화면 사용.
 
@@ -107,7 +91,7 @@ clasp deploy --description "v1"
 
 ---
 
-## 7. 자동화 트리거 (선택)
+## 5. 자동화 트리거 (선택)
 
 편집기에서 각 함수를 1회 실행하면 매일 도는 트리거가 등록된다.
 
@@ -119,7 +103,7 @@ clasp deploy --description "v1"
 
 ---
 
-## 8. 매월 운영
+## 6. 매월 운영
 
 1. **근태/시간외/휴가** — 근태관리·휴가관리 화면에서 엑셀 업로드 (양식은 `samples/`)
 2. **월급계산** — 급여관리 > 월급계산 → 직원별 확인 → 급여대장 저장
@@ -129,5 +113,7 @@ clasp deploy --description "v1"
 
 ## 갱신
 
-- 코드 업데이트: `git pull` 후 `clasp push` + `clasp deploy` (수동이면 재붙여넣기)
+- **방식 1(사본)**: 코드 버그 수정본이 나오면, 갱신된 `Code.js` 파일 + 안내를 받아
+  편집기에서 해당 파일 내용을 교체 → 저장 → 재배포. (데이터는 그대로)
+- **방식 2(clasp)**: `git pull` → `clasp push` → `clasp deploy`
 - 요율·간이세액표는 매년 초, 공휴일은 연 1회 갱신 (설정 > 정책·기준표)

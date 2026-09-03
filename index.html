@@ -138,7 +138,9 @@
         hlYear: { type: Number },
         hlRows: { type: Array },
         hlMsg: { type: String },
-        hlDirty: { type: Boolean }
+        hlDirty: { type: Boolean },
+        ocOrgName: { type: String },
+        ocAppTitle: { type: String }
       };
 
       _loadHobongStatus() {
@@ -2241,6 +2243,23 @@
         if (screen === 'holidays') this._loadHolidays();
       }
 
+      _saveOrgConfig() {
+        const name = (this.ocOrgName || '').trim();
+        if (!name) { alert('기관명을 입력하세요.'); return; }
+        const title = (this.ocAppTitle || '').trim() || (name + ' 통합관리');
+        this.isLoading = true;
+        this.loadingMsg = '기관 설정 저장 중...';
+        google.script.run.withSuccessHandler(() => {
+          this.isLoading = false;
+          this.appConfig = { orgName: name, appTitle: title, configured: true };
+          this.requestUpdate();
+          alert('저장했습니다. 편집기에서 setupAllSheets 를 실행하세요.');
+        }).withFailureHandler((err) => {
+          this.isLoading = false;
+          alert('저장 실패: ' + (err && err.message ? err.message : err));
+        }).setOrgConfig(name, title);
+      }
+
       // ===== 공휴일 =====
       _loadHolidays() {
         google.script.run.withSuccessHandler((rows) => {
@@ -3444,6 +3463,22 @@
           </nav>
 
           <main class="main-content">
+            ${this.appConfig && this.appConfig.configured === false ? html`
+              <div class="card" style="border:2px solid #f59e0b; background:#fffbeb; margin-bottom:20px;">
+                <h3 style="margin-top:0; color:#b45309;">⚙️ 기관 설정을 완료하세요</h3>
+                <p style="color:#78350f; font-size:14px; margin:8px 0 16px;">
+                  이 사본을 처음 설정하는 중입니다. 기관명을 입력하고 저장하세요. (메일 제목·서명, 재직증명서 근무처명에 쓰입니다)
+                </p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <input type="text" .value="${this.ocOrgName || ''}" @input="${(e) => this.ocOrgName = e.target.value}" placeholder="기관명 (예: ○○종합사회복지관)" style="padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:280px;">
+                  <input type="text" .value="${this.ocAppTitle || ''}" @input="${(e) => this.ocAppTitle = e.target.value}" placeholder="화면 제목 (선택, 비우면 '기관명 통합관리')" style="padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:280px;">
+                  <button class="btn btn-primary" @click="${() => this._saveOrgConfig()}" style="padding:10px 24px;">저장</button>
+                </div>
+                <p style="color:#92400e; font-size:12px; margin:14px 0 0;">
+                  ※ 이후 편집기에서 <code>setupAllSheets</code> 를 한 번 실행해 시트를 만들고, 정책·기준표(기본급·요율·간이세액표·공휴일)를 입력하세요.
+                </p>
+              </div>
+            ` : ''}
             ${this.activeTab === 'master' ? html`
               <div>
                 <h2 style="margin-top:0; color:#0f172a;">${this.appConfig.appTitle || '통합관리시스템'}</h2>

@@ -2,8 +2,10 @@
 // 기관별 설정 — 새 기관에 배포할 때 이 블록만 수정하면 된다.
 // ============================================================================
 const CONFIG = {
-  // [필수] 데이터가 저장된 구글 스프레드시트 ID
-  //   스프레드시트 URL 의 /d/ 와 /edit 사이에 있는 긴 문자열
+  // 데이터가 저장된 구글 스프레드시트 ID (URL 의 /d/ 와 /edit 사이 문자열).
+  //  · "사본 만들기" 로 배포한 경우: 비워 두면(____ 그대로) 이 스크립트가 붙어 있는
+  //    스프레드시트를 자동으로 쓴다. 건드릴 필요 없음.
+  //  · 독립(standalone) 스크립트로 배포한 경우: 반드시 여기에 ID 를 넣어야 한다.
   SS_ID: '____스프레드시트_ID____',
 
   // [필수] 기관명 — 메일 제목·서명, 재직증명서용 경력(경력상세 시트)의 근무처명에 쓰인다.
@@ -21,12 +23,42 @@ const CONFIG = {
 };
 
 // ─ 이하 전역 상수는 기존 코드 호환용. CONFIG 값을 그대로 참조한다. ─
-const SS_ID = CONFIG.SS_ID;
-const ORG_NAME = CONFIG.ORG_NAME;
+// SS_ID 가 비어 있고(플레이스홀더 포함) 스크립트가 스프레드시트에 붙어 있으면,
+// 그 스프레드시트를 자동으로 사용한다 ("사본 만들기" 배포용).
+const SS_ID = (function () {
+  var id = CONFIG.SS_ID;
+  if (!id || id.indexOf('____') !== -1) {
+    try {
+      var active = SpreadsheetApp.getActiveSpreadsheet();
+      if (active) return active.getId();
+    } catch (e) { /* standalone 스크립트 → getActiveSpreadsheet 없음 */ }
+  }
+  return id;
+})();
+// ORG_NAME / APP_TITLE 은 스크립트 속성이 있으면 그것을 우선 사용한다
+// (코드를 안 고치고 setOrgConfig 함수 한 번으로 설정 가능).
+function _cfg_(key, fallback) {
+  try {
+    var v = PropertiesService.getScriptProperties().getProperty(key);
+    if (v) return v;
+  } catch (e) {}
+  return fallback;
+}
+const ORG_NAME = _cfg_('ORG_NAME', CONFIG.ORG_NAME);
+const APP_TITLE = _cfg_('APP_TITLE', CONFIG.APP_TITLE);
+
+// 최초 세팅용: 편집기에서 실행 (인자 채워서) 또는 웹앱에서 호출.
+//  setOrgConfig('○○기관', '○○기관 통합관리')
+function setOrgConfig(orgName, appTitle) {
+  const p = PropertiesService.getScriptProperties();
+  if (orgName) p.setProperty('ORG_NAME', orgName.toString().trim());
+  if (appTitle) p.setProperty('APP_TITLE', appTitle.toString().trim());
+  return { success: true, message: '기관 설정 저장: ' + (orgName || '(유지)') + ' / ' + (appTitle || '(유지)') };
+}
 
 // 프론트엔드(index.html)로 전달하는 기관 설정
 function getAppConfig() {
-  return { orgName: ORG_NAME, appTitle: CONFIG.APP_TITLE };
+  return { orgName: ORG_NAME, appTitle: APP_TITLE, configured: ORG_NAME.indexOf('____') === -1 };
 }
 
 // =========================================================================
@@ -35,7 +67,7 @@ function getAppConfig() {
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle(CONFIG.APP_TITLE)
+    .setTitle(APP_TITLE)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -3843,7 +3875,7 @@ function pr_mail1st(p) {
       '</p>' +
       '<p>충분한 휴식을 위해 연차를 꼭 사용해 주시기 바랍니다. 궁금하신 점은 인사담당자에게 편하게 문의해 주세요.</p>' +
       '<p style="color:#64748b; font-size:13px; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:14px;">' +
-        ORG_NAME + ' 인사담당<br>본 메일은 ' + CONFIG.APP_TITLE + '에서 자동 발송되었습니다.</p>' +
+        ORG_NAME + ' 인사담당<br>본 메일은 ' + APP_TITLE + '에서 자동 발송되었습니다.</p>' +
     '</div>';
   MailApp.sendEmail({ to: p.email, subject: subject, htmlBody: html });
 }
@@ -3872,7 +3904,7 @@ function pr_mail2nd(p, assignDate, note) {
         '부득이한 사정이 있으시면 인사담당자와 협의해 주세요.' +
       '</p>' +
       '<p style="color:#64748b; font-size:13px; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:14px;">' +
-        ORG_NAME + ' 인사담당<br>본 메일은 ' + CONFIG.APP_TITLE + '에서 자동 발송되었습니다.</p>' +
+        ORG_NAME + ' 인사담당<br>본 메일은 ' + APP_TITLE + '에서 자동 발송되었습니다.</p>' +
     '</div>';
   MailApp.sendEmail({ to: p.email, subject: subject, htmlBody: html });
 }
@@ -3929,11 +3961,11 @@ function pr_mailAdmin(targets, isDeadline) {
       '<div style="background:#f0f9ff; padding:14px 16px; border-left:4px solid #0ea5e9; border-radius:4px;">' +
         '<strong>진행 방법</strong><br>' +
         '1. 대상자와 연차 사용 시기를 협의합니다.<br>' +
-        '2. ' + CONFIG.APP_TITLE + ' → <strong>휴가관리 → 연차사용촉진</strong> 페이지로 이동합니다.<br>' +
+        '2. ' + APP_TITLE + ' → <strong>휴가관리 → 연차사용촉진</strong> 페이지로 이동합니다.<br>' +
         '3. 협의한 날짜를 입력하고 <strong>통보 발송</strong>을 누르면 직원에게 메일이 자동 발송됩니다.' +
       '</div>' +
       '<p style="color:#64748b; font-size:13px; margin-top:30px; border-top:1px solid #e2e8f0; padding-top:14px;">' +
-        '본 메일은 ' + CONFIG.APP_TITLE + '에서 자동 발송되었습니다.</p>' +
+        '본 메일은 ' + APP_TITLE + '에서 자동 발송되었습니다.</p>' +
     '</div>';
 
   admins.forEach(function (e) {
