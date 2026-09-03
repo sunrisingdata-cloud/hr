@@ -122,7 +122,9 @@
         lgBalEmpId: { type: String },
         lgAllBalance: { type: Array },
         expandLeave: { type: Boolean },
-        expandBudget: { type: Boolean }
+        expandBudget: { type: Boolean },
+        expandConfig: { type: Boolean },
+        policyInfo: { type: Array }
       };
 
       _loadHobongStatus() {
@@ -529,6 +531,8 @@
         this.expandSalary = false;
         this.expandLeave = false;
         this.expandBudget = false;
+        this.expandConfig = false;
+        this.policyInfo = null;
         this.settingsYear = new Date().getFullYear();
         
         this._settingsLoaded = false;
@@ -2273,6 +2277,15 @@
         return s;
       }
 
+      _loadPolicyInfo() {
+        google.script.run.withSuccessHandler((info) => {
+          this.policyInfo = info || [];
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+        }).getPolicySheetsInfo();
+      }
+
       // 선택한 연도의 저장된 설정을 불러옴
       _loadSettingsByYear() {
         google.script.run.withSuccessHandler((json) => {
@@ -3131,6 +3144,17 @@
             ${this.expandBudget ? html`
               <div style="margin-bottom: 12px;">
                 <div class="nav-item ${this.activeTab === 'budget' ? 'active' : ''}" @click="${() => this.activeTab = 'budget'}">📅 차기연도 인건비 계산</div>
+              </div>
+            ` : ''}
+
+            <!-- 6. 설정 -->
+            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandConfig = !this.expandConfig; }}">
+              <span>설정</span>
+              <span style="font-size: 12px;">${this.expandConfig ? '▼' : '▶'}</span>
+            </div>
+            ${this.expandConfig ? html`
+              <div style="margin-bottom: 12px;">
+                <div class="nav-item ${this.activeTab === 'policy-tables' ? 'active' : ''}" @click="${() => { this.activeTab = 'policy-tables'; this._loadPolicyInfo(); }}">📋 정책·기준표</div>
               </div>
             ` : ''}
           </nav>
@@ -4087,6 +4111,43 @@
                     </div>
                   </div>
                 ` : html`<div class="card"><p style="text-align:center; color:#64748b; padding:40px;">조회를 누르세요.</p></div>`}
+              </div>
+            ` : ''}
+
+            ${this.activeTab === 'policy-tables' ? html`
+              <div>
+                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">📋 정책·기준표</h2>
+                <p style="color:#64748b; margin-top:0; margin-bottom:24px;">
+                  급여·공제·휴가 계산의 <strong>기준 데이터</strong>다. 각 표를 최신으로 유지해야 계산이 맞다.
+                  <span style="color:#0f766e;">수동</span> = 기관이 직접 입력, <span style="color:#b45309;">보조</span> = 공식자료로 채우고 주기적으로 갱신.
+                </p>
+
+                ${!this.policyInfo ? html`<div class="card"><p style="text-align:center; color:#64748b; padding:40px;">불러오는 중...</p></div>` : html`
+                  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
+                    ${this.policyInfo.map(p => html`
+                      <div class="card" style="margin-bottom:0;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                          <h3 style="margin:0; color:#0f172a;">${p.name}</h3>
+                          <span class="badge" style="background:${p.kind === 'manual' ? '#ccfbf1' : '#fef3c7'}; color:${p.kind === 'manual' ? '#0f766e' : '#b45309'};">${p.kind === 'manual' ? '수동' : '보조'}</span>
+                        </div>
+                        <p style="color:#475569; font-size:13px; margin:10px 0;">${p.desc}</p>
+                        <div style="font-size:12px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:10px; line-height:1.9;">
+                          <div>쓰이는 곳: <strong style="color:#334155;">${p.usedBy}</strong></div>
+                          <div>상태: ${p.exists
+                            ? html`<span style="color:#0f766e;">시트 있음 · ${p.rows}행</span>`
+                            : html`<span style="color:#dc2626;">시트 없음</span>`}</div>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+                          <a href="${p.sheetUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">📂 스프레드시트에서 편집</a>
+                          ${p.screen ? html`<button class="btn btn-outline btn-sm" @click="${() => { this.activeTab = p.screen; this._loadSettingsByYear(); }}">이 앱에서 편집</button>` : ''}
+                        </div>
+                      </div>
+                    `)}
+                  </div>
+                  <p style="color:#94a3b8; font-size:12px; margin-top:20px;">
+                    ※ 현재는 각 표를 스프레드시트에서 직접 편집한다. 앱 내 편집 화면(기본급 붙여넣기, 요율 입력, 공휴일 자동 채우기)은 이후 단계에서 추가된다.
+                  </p>
+                `}
               </div>
             ` : ''}
           </main>

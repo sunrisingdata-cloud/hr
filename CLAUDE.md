@@ -86,7 +86,27 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
   - [x] **B-3. 엑셀 업로드 + 근태·휴가 현황 목록** — 헤더명 매칭 파서 + `_importUpsert_`(직원ID＋연월일 덮어쓰기) → `importAttendanceExcel`/`importOvertimeExcel`/`importLeaveExcel`. 지문인식기 방식(`att_deviceMap`/`importAttendanceRows`) 삭제. 프론트: `_wsUploadCard`(3화면 공용) + `_attFilterCard` + 근태현황·휴가사용 목록
   - [x] **B-4. 엑셀 샘플 파일** — `samples/근태기록_양식.csv`·`시간외근로_양식.csv`·`휴가기록_양식.csv` (UTF-8 BOM, 헤더 + 예시행) + `samples/README.md`
   - **B 완료.** 다음은 C(정책·기준표 화면)
-- [ ] **C. 정책·기준표 화면** — 정책 시트 편집 UI (기본급·제수당 수동, 나머지 자동채우기)
+- **C. 정책·기준표** (설정 그룹 신설)
+  - [x] **C-1. 정책·기준표 landing** — `getPolicySheetsInfo()` + `POLICY_SHEETS` 상수. "설정 > 정책·기준표" 탭: 5개 정책시트(기본급·제수당·간이세액표·세금퇴직금·공휴일) 카드 = 용도·상태(행수)·스프레드시트 편집 링크(`#gid=`)·수동/보조 구분
+  - [ ] **C-2. 기본급 편집** — 엑셀 붙여넣기/업로드 → `기본급` 시트 writer (현재 writer 없음, `getBasicSalary`가 읽기만). 레거시 `uploadBasicSalaryData`(UserProperties)·`calculateAnnualSalary`·`_handleBasicSalaryUpload`(버튼 없음) 정리
+  - [ ] **C-3. 세금/퇴직금 요율 입력 폼** — `fillTaxRates`(2026 하드코딩)를 연도별 입력 UI로. 시트: A연도 B항목 C비율, B2='국민연금'으로 탐지
+  - [ ] **C-4. 간이세액표 업로드** — 국세청 표 엑셀 업로드 → `간이세액표` 시트
+  - [ ] **D. 공휴일** — 목록 UI + 구글 캘린더 '대한민국 공휴일' 자동 채우기 → `공휴일` 시트
+
+### 배포 후 실동작 검증 TODO (A~B는 문법 확인만 됨, 실행 미검증)
+
+welfare-erp용 테스트 Apps Script + 빈 스프레드시트 만들어 `clasp push` 후 확인:
+
+- [ ] `getAppConfig()` → 프론트 제목·메일 문구에 `CONFIG.ORG_NAME`/`APP_TITLE` 반영되는지
+- [ ] `setupWorkSheets()` 실행 → 근태기록/시간외근로/휴가기록 헤더 생성 (휴가기록에 `사용시간` E열)
+- [ ] **엑셀 업로드 3종**: 헤더명 매칭(별칭 포함), 직원ID＋연월일 덮어쓰기, 이름 자동보충, 미리보기, 반영 후 목록 갱신
+- [ ] **근태현황**: 근로시간(퇴근−출근−휴게1h) 계산, 미기입 표시
+- [ ] **시간외근무현황**: 시간 계산, 직원별 달력월 누적
+- [ ] **휴가현황**: 사용내역 목록, 잔여현황(부여−사용, 사용시간 반영), 반차 4h
+- [ ] **월급계산**: 무급일수가 휴가기록 '무급' 종류 × 사용시간/8 로 반영되는지 (`getUnpaidFromDocs` 삭제 영향)
+- [ ] 시간외수당: `getWorkSummary` 가 근태기록+시간외근로 직접 읽어 1배/1.5배 분리 (전월 실적)
+- [ ] 연차촉진 메일(`pr_mail1st`/`pr_mail2nd`): `CONFIG.LEAVE_REQUEST_HINT` 반영, `CHATBOT_HINT` 비면 박스 미표시
+- [ ] 퇴사 처리 → `recordOrgCareer` 가 경력상세에 `ORG_NAME` 근무처로 기록
 - [ ] **D. 공휴일 자동** — 구글 캘린더 '대한민국 공휴일' → `공휴일` 시트
 - [ ] **E. 간이세액표·4대보험요율** — 공식자료 채우기 + 갱신 절차
 - [ ] **F. SETUP.md** — 스프레드시트 생성 → CONFIG 수정 → clasp 배포 → 트리거 설정
