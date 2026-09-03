@@ -92,7 +92,7 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
     - TODO(별도): 레거시 `uploadBasicSalaryData`(UserProperties)·`getSalaryFromTable`·`calculateAnnualSalary`·프론트 `_handleBasicSalaryUpload`(버튼 없음) 죽은 코드 제거
   - [x] **C-3. 세금/퇴직금 요율 입력 폼** — `fillTaxRates`(하드코딩 write) 삭제. `getTaxRatesForYear`/`saveTaxRates` + `_findTaxSheet_`(B2='국민연금' 탐지, 없으면 '세금·퇴직금' 생성). `TAX_RATE_ITEMS`(11개)·`TAX_RATE_STANDARD`(참고값). 프론트 '설정 > 세금·퇴직금 요율' 탭: 연도 선택 + 항목별 입력 + [표준 요율 불러오기](폼만 채움)·[저장]
   - [x] **C-4. 간이세액표 업로드** — `getIncomeTaxTableInfo`/`saveIncomeTaxTable`. 프론트 '설정 > 간이세액표' 탭: 국세청 엑셀 업로드 → "이상"/"미만" 헤더 자동탐지 + 1~11인 세액 → 미리보기(앞6/뒤3) → 시트 전체 교체. `INCOME_TAX_HEADER` 상수
-- [ ] **D. 공휴일** — 목록 UI + 구글 캘린더 '대한민국 공휴일' 자동 채우기 → `공휴일` 시트
+  - [x] **D. 공휴일** — `getHolidays`/`saveHolidays`(그 해 교체) + `fetchKoreanHolidays`(구글 '대한민국 공휴일' 공개 캘린더, `CalendarApp`, 저장 안 함). 프론트 '설정 > 공휴일' 탭: 연도 선택 + [구글 캘린더에서 가져오기] + 행 편집/추가/삭제 + 저장. 시트 `공휴일` A날짜 B명칭 (`av_isWorkday`는 A만 봄). **CalendarApp 스코프 추가 → 재승인 필요**
 - [ ] **F. SETUP.md** — 스프레드시트 생성 → CONFIG 수정 → clasp 배포 → 트리거 설정
 - [ ] **G. 스프레드시트 부트스트랩** — `setupAllSheets()` (`_ensureSheet_` 확장). 죽은 시트 `직원마스터` 정리. 검증용 시드(별도 파일)
 - [ ] **레거시 정리(별도)** — `uploadBasicSalaryData`/`getSalaryFromTable`/`calculateAnnualSalary`/`getSettings`(UserProperties 계열) + 프론트 `_handleBasicSalaryUpload`/`_parseBasicSalaryData` 죽은 코드 제거
@@ -118,6 +118,7 @@ git 없는 배포 샌드박스. `sunrisingdata@sunrising.org`.
 - [ ] 시간외근무현황: 시간 계산, 직원별 달력월 누적
 - [ ] 휴가현황: 사용내역 목록, 반차 4h
 - [ ] 간이세액표 업로드: 국세청 엑셀 파싱, 미리보기, 전체 교체, `lookupIncomeTax` 정상
+- [ ] 공휴일: 구글 캘린더 가져오기(CalendarApp 재승인), 행 편집/저장, `av_isWorkday` 반영
 - [ ] 기본급표 표형 파일 / 붙여넣기(탭·콤마) / 연도별 스코프
 - [ ] **월급계산** (시드 필요): 무급일수 = 휴가기록 '무급' × 사용시간/8, 시간외수당 1배/1.5배 분리(전월), 공제(`getTaxRates`), 간이세액표 소득세
 - [ ] 휴가 잔여: 부여(휴가대장) − 사용(휴가기록 사용시간)
