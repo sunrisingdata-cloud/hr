@@ -2324,36 +2324,102 @@
         }).getBasicSalaryTable(this.bsYear || '');
       }
 
-      _bsParseMatrix(matrix) {
-        if (!matrix || matrix.length < 2) return null;
-        const grades = matrix[0].slice(1).map(g => (g == null ? '' : g).toString().trim()).filter(Boolean);
+      _bsCell(v) { return (v == null ? '' : v).toString().trim(); }
+
+      // 두 형식 모두 지원:
+      //  · 롱: 헤더에 '급수'·'호봉'·'금액' 열 → 한 행 = 한 칸
+      //  · 매트릭스: 첫 행 = 급수, 첫 열 = 호봉, 칸 = 금액
+      // 반환: { grades:[...], rows:[{hobon, amounts:{급수:금액}}], year:'', yearsFound:[...] }
+      _bsParseTable(m) {
+        if (!m || m.length < 2) return null;
+        const norm = (s) => this._bsCell(s).toLowerCase().replace(/\s+/g, '');
+        const header = (m[0] || []).map(norm);
+        const findCol = (aliases) => { for (const a of aliases) { const i = header.indexOf(a); if (i !== -1) return i; } return -1; };
+        const cAmt = findCol(['금액', '기본급', '봉급', '월기본급', 'amount']);
+        const cGrade = findCol(['급수', '직급', 'grade']);
+        const cHobon = findCol(['호봉', '호수', 'step']);
+        const cYear = findCol(['연도', '년도', '적용연도', 'year']);
+
+        // ---- 롱 포맷 ----
+        if (cAmt !== -1 && cHobon !== -1 && cGrade !== -1) {
+          const yearsSet = [];
+          const parsed = [];
+          for (let i = 1; i < m.length; i++) {
+            const r = m[i]; if (!r) continue;
+            const grade = this._bsCell(r[cGrade]);
+            const hobon = this._bsCell(r[cHobon]).replace(/\D/g, '');
+            const amt = parseFloat(this._bsCell(r[cAmt]).replace(/[,\s원]/g, ''));
+            if (!grade || !hobon || isNaN(amt) || amt <= 0) continue;
+            const yr = cYear !== -1 ? this._bsCell(r[cYear]).replace(/\D/g, '') : '';
+            if (yearsSet.indexOf(yr) === -1) yearsSet.push(yr);
+            parsed.push({ grade, hobon, amt, yr });
+          }
+          if (!parsed.length) return null;
+          // 여러 연도가 섞였으면 현재 선택 연도 것만
+          let use = parsed, pickYear = '';
+          if (yearsSet.length === 1) {
+            pickYear = yearsSet[0];
+          } else {
+            pickYear = (this.bsYear || '').toString();
+            use = parsed.filter(p => p.yr === pickYear);
+          }
+          const grades = [], byHobon = {};
+          use.forEach(p => {
+            if (grades.indexOf(p.grade) === -1) grades.push(p.grade);
+            if (!byHobon[p.hobon]) byHobon[p.hobon] = {};
+            byHobon[p.hobon][p.grade] = p.amt;
+          });
+          return {
+            grades: grades,
+            rows: Object.keys(byHobon).map(Number).sort((a, b) => a - b).map(h => ({ hobon: h, amounts: byHobon[String(h)] })),
+            year: pickYear,
+            yearsFound: yearsSet.filter(Boolean)
+          };
+        }
+
+        // ---- 매트릭스 포맷 ----
+        const grades = (m[0] || []).slice(1).map(g => this._bsCell(g)).filter(Boolean);
         if (!grades.length) return null;
         const rows = [];
-        for (let i = 1; i < matrix.length; i++) {
-          const r = matrix[i];
-          if (!r) continue;
-          const hobon = (r[0] == null ? '' : r[0].toString()).replace(/\D/g, '');
+        for (let i = 1; i < m.length; i++) {
+          const r = m[i]; if (!r) continue;
+          const hobon = this._bsCell(r[0]).replace(/\D/g, '');
           if (!hobon) continue;
           const amounts = {};
           for (let c = 0; c < grades.length; c++) {
-            const amt = parseFloat((r[c + 1] == null ? '' : r[c + 1].toString()).replace(/[,\s원]/g, ''));
+            const amt = parseFloat(this._bsCell(r[c + 1]).replace(/[,\s원]/g, ''));
             if (!isNaN(amt) && amt > 0) amounts[grades[c]] = amt;
           }
           rows.push({ hobon: parseInt(hobon, 10), amounts });
         }
-        return { grades, rows };
+        return { grades, rows, year: '', yearsFound: [] };
+      }
+
+      _bsApply(parsed, srcLabel) {
+        if (!parsed || !parsed.grades.length || !parsed.rows.length) {
+          this.bsMsg = '❌ 표를 읽지 못했습니다. 헤더에 (급수·호봉·금액) 열이 있거나, 첫 행=급수·첫 열=호봉 형식이어야 합니다.';
+          this.requestUpdate(); return;
+        }
+        this.bsGrades = parsed.grades;
+        this.bsRows = parsed.rows;
+        let msg = `${srcLabel} ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음 (${parsed.grades.join(', ')}).`;
+        if (parsed.yearsFound && parsed.yearsFound.length > 1) {
+          this.bsYear = parsed.year || this.bsYear;
+          msg += `\n⚠️ 파일에 여러 연도(${parsed.yearsFound.join(', ')})가 있어 '${parsed.year || '연도 공통'}' 것만 읽었습니다. 다른 연도는 위에서 연도를 바꿔 다시 올리세요.`;
+        } else if (parsed.year) {
+          this.bsYear = parsed.year;
+          msg += `\n연도 ${parsed.year} 로 저장됩니다.`;
+        }
+        msg += '\n확인 후 [저장].';
+        this.bsMsg = msg;
+        this.requestUpdate();
       }
 
       _bsApplyPaste() {
         const text = (this.bsPasteText || '').trim();
         if (!text) { alert('붙여넣을 표가 없습니다.'); return; }
         const matrix = text.split(/\r?\n/).map(line => (line.indexOf('\t') !== -1 ? line.split('\t') : line.split(',')).map(c => c.trim()));
-        const parsed = this._bsParseMatrix(matrix);
-        if (!parsed) { this.bsMsg = '❌ 표를 읽지 못했습니다. 첫 행=급수, 첫 열=호봉 형식인지 확인하세요.'; this.requestUpdate(); return; }
-        this.bsGrades = parsed.grades;
-        this.bsRows = parsed.rows;
-        this.bsMsg = `📋 ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음. 확인 후 [저장].`;
-        this.requestUpdate();
+        this._bsApply(this._bsParseTable(matrix), '📋');
       }
 
       _bsHandleFile(e) {
@@ -2365,12 +2431,7 @@
             const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', raw: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-            const parsed = this._bsParseMatrix(matrix);
-            if (!parsed) { this.bsMsg = '❌ 표를 읽지 못했습니다. 첫 행=급수, 첫 열=호봉 형식인지 확인하세요.'; this.requestUpdate(); return; }
-            this.bsGrades = parsed.grades;
-            this.bsRows = parsed.rows;
-            this.bsMsg = `📄 ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음. 확인 후 [저장].`;
-            this.requestUpdate();
+            this._bsApply(this._bsParseTable(matrix), '📄');
           } catch (err) {
             this.bsMsg = '❌ 파일 읽기 실패: ' + err.message;
             this.requestUpdate();
@@ -4312,8 +4373,9 @@
               <div>
                 <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">💵 기본급표</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
-                  급수·호봉별 월 기본급. 지자체·법인 임금테이블을 <strong>엑셀에서 복사해 붙여넣기</strong>하거나 파일로 올린다.
-                  형식: <strong>첫 행 = 급수 이름</strong>(첫 칸은 비움/‘호봉’), <strong>첫 열 = 호봉 숫자</strong>, 칸 = 금액.
+                  급수·호봉별 월 기본급. 지자체·법인 임금테이블을 <strong>엑셀에서 복사해 붙여넣기</strong>하거나 파일로 올린다. 두 형식 모두 인식한다:
+                  <br>· <strong>목록형</strong> — 헤더에 <code>급수 · 호봉 · 금액</code>(선택: <code>연도</code>) 열, 한 줄 = 한 칸. 급수는 <code>1</code>/<code>1급</code>/<code>관리직</code> 등 그대로.
+                  <br>· <strong>표형</strong> — 첫 행 = 급수 이름, 첫 열 = 호봉, 칸 = 금액.
                 </p>
 
                 <div class="card" style="margin-bottom:20px;">
