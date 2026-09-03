@@ -124,7 +124,11 @@
         expandLeave: { type: Boolean },
         expandBudget: { type: Boolean },
         expandConfig: { type: Boolean },
-        policyInfo: { type: Array }
+        policyInfo: { type: Array },
+        taxYear: { type: Number },
+        taxForm: { type: Object },
+        taxItems: { type: Array },
+        taxStandard: { type: Object }
       };
 
       _loadHobongStatus() {
@@ -533,6 +537,10 @@
         this.expandBudget = false;
         this.expandConfig = false;
         this.policyInfo = null;
+        this.taxYear = new Date().getFullYear();
+        this.taxForm = {};
+        this.taxItems = [];
+        this.taxStandard = {};
         this.settingsYear = new Date().getFullYear();
         
         this._settingsLoaded = false;
@@ -2286,6 +2294,48 @@
         }).getPolicySheetsInfo();
       }
 
+      _openPolicyScreen(screen) {
+        this.activeTab = screen;
+        if (screen === 'salary-settings') this._loadSettingsByYear();
+        if (screen === 'tax-rates') this._loadTaxRates();
+      }
+
+      _loadTaxRates() {
+        google.script.run.withSuccessHandler((res) => {
+          res = res || {};
+          this.taxItems = res.items || [];
+          this.taxStandard = res.standard || {};
+          const rates = res.rates || {};
+          const form = {};
+          (this.taxItems).forEach(it => { form[it] = (rates[it] != null && rates[it] !== '') ? rates[it] : ''; });
+          this.taxForm = form;
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+        }).getTaxRatesForYear(this.taxYear);
+      }
+
+      _fillTaxStandard() {
+        const form = { ...this.taxForm };
+        (this.taxItems).forEach(it => { form[it] = this.taxStandard[it] != null ? this.taxStandard[it] : form[it]; });
+        this.taxForm = form;
+        this.requestUpdate();
+      }
+
+      _saveTaxRates() {
+        if (!confirm(`${this.taxYear}년 세금·퇴직금 요율을 저장합니다. 계속할까요?`)) return;
+        this.isLoading = true;
+        this.loadingMsg = '요율 저장 중...';
+        google.script.run.withSuccessHandler((res) => {
+          this.isLoading = false;
+          alert((res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : ''));
+          if (res && res.success) this._loadTaxRates();
+        }).withFailureHandler((err) => {
+          this.isLoading = false;
+          alert('저장 실패: ' + (err && err.message ? err.message : err));
+        }).saveTaxRates(this.taxYear, JSON.stringify(this.taxForm));
+      }
+
       // 선택한 연도의 저장된 설정을 불러옴
       _loadSettingsByYear() {
         google.script.run.withSuccessHandler((json) => {
@@ -3155,6 +3205,7 @@
             ${this.expandConfig ? html`
               <div style="margin-bottom: 12px;">
                 <div class="nav-item ${this.activeTab === 'policy-tables' ? 'active' : ''}" @click="${() => { this.activeTab = 'policy-tables'; this._loadPolicyInfo(); }}">📋 정책·기준표</div>
+                <div class="nav-item ${this.activeTab === 'tax-rates' ? 'active' : ''}" @click="${() => { this.activeTab = 'tax-rates'; this._loadTaxRates(); }}">🧮 세금·퇴직금 요율</div>
               </div>
             ` : ''}
           </nav>
@@ -4139,15 +4190,60 @@
                         </div>
                         <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
                           <a href="${p.sheetUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">📂 스프레드시트에서 편집</a>
-                          ${p.screen ? html`<button class="btn btn-outline btn-sm" @click="${() => { this.activeTab = p.screen; this._loadSettingsByYear(); }}">이 앱에서 편집</button>` : ''}
+                          ${p.screen ? html`<button class="btn btn-outline btn-sm" @click="${() => this._openPolicyScreen(p.screen)}">이 앱에서 편집</button>` : ''}
                         </div>
                       </div>
                     `)}
                   </div>
                   <p style="color:#94a3b8; font-size:12px; margin-top:20px;">
-                    ※ 현재는 각 표를 스프레드시트에서 직접 편집한다. 앱 내 편집 화면(기본급 붙여넣기, 요율 입력, 공휴일 자동 채우기)은 이후 단계에서 추가된다.
+                    ※ 세금·퇴직금 요율은 아래 "이 앱에서 편집" 으로 입력할 수 있다. 기본급 붙여넣기·간이세액표 업로드·공휴일 자동 채우기는 이후 단계에서 추가된다.
                   </p>
                 `}
+              </div>
+            ` : ''}
+
+            ${this.activeTab === 'tax-rates' ? html`
+              <div>
+                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">🧮 세금·퇴직금 요율</h2>
+                <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
+                  월급계산의 <strong>4대보험·퇴직적립금·지방소득세</strong> 공제에 쓰인다. 매년 각 공단·지자체 발표로 확인·수정한다.
+                  <br><span style="color:#b45309;">장기요양</span>은 <u>건강보험료</u> 대비 %, <span style="color:#b45309;">주민세</span>는 <u>소득세</u> 대비 %. 나머지는 과세급여 대비 %.
+                  소득세는 간이세액표에서 조회하므로 여기 없다.
+                </p>
+
+                <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+                  <div>
+                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">연도</label>
+                    <select @change="${(e) => { this.taxYear = parseInt(e.target.value, 10); this._loadTaxRates(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      ${[0,1,2,-1,-2].map(d => new Date().getFullYear() + d).map(y => html`<option value="${y}" ?selected="${this.taxYear === y}">${y}년</option>`)}
+                    </select>
+                  </div>
+                  <button class="btn btn-outline" @click="${() => this._fillTaxStandard()}" style="height:44px;">표준 요율 불러오기</button>
+                  <button class="btn btn-primary" @click="${() => this._saveTaxRates()}" style="height:44px; padding:0 28px;">💾 ${this.taxYear}년 저장</button>
+                </div>
+
+                <div class="card">
+                  <table>
+                    <thead><tr><th style="width:40%;">항목</th><th>비율(%)</th><th>표준</th></tr></thead>
+                    <tbody>
+                      ${(this.taxItems || []).map(it => html`
+                        <tr>
+                          <td style="font-weight:500;">${it}</td>
+                          <td>
+                            <input type="number" step="0.001" .value="${this.taxForm[it] != null ? this.taxForm[it] : ''}"
+                              @input="${(e) => { this.taxForm = { ...this.taxForm, [it]: e.target.value }; }}"
+                              style="width:140px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px;">
+                          </td>
+                          <td style="color:#94a3b8; font-size:13px;">${this.taxStandard[it] != null ? this.taxStandard[it] + '%' : '-'}</td>
+                        </tr>
+                      `)}
+                    </tbody>
+                  </table>
+                  <p style="color:#94a3b8; font-size:12px; margin-top:14px;">
+                    ※ "표준 요율 불러오기"는 폼에 참고값을 채우기만 한다. 확인·수정 후 [저장]을 눌러야 시트에 반영된다.
+                    산재보험은 업종·기관마다 달라 반드시 공단 고지서로 확인.
+                  </p>
+                </div>
               </div>
             ` : ''}
           </main>

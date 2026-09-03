@@ -89,7 +89,7 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
 - **C. 정책·기준표** (설정 그룹 신설)
   - [x] **C-1. 정책·기준표 landing** — `getPolicySheetsInfo()` + `POLICY_SHEETS` 상수. "설정 > 정책·기준표" 탭: 5개 정책시트(기본급·제수당·간이세액표·세금퇴직금·공휴일) 카드 = 용도·상태(행수)·스프레드시트 편집 링크(`#gid=`)·수동/보조 구분
   - [ ] **C-2. 기본급 편집** — 엑셀 붙여넣기/업로드 → `기본급` 시트 writer (현재 writer 없음, `getBasicSalary`가 읽기만). 레거시 `uploadBasicSalaryData`(UserProperties)·`calculateAnnualSalary`·`_handleBasicSalaryUpload`(버튼 없음) 정리
-  - [ ] **C-3. 세금/퇴직금 요율 입력 폼** — `fillTaxRates`(2026 하드코딩)를 연도별 입력 UI로. 시트: A연도 B항목 C비율, B2='국민연금'으로 탐지
+  - [x] **C-3. 세금/퇴직금 요율 입력 폼** — `fillTaxRates`(하드코딩 write) 삭제. `getTaxRatesForYear`/`saveTaxRates` + `_findTaxSheet_`(B2='국민연금' 탐지, 없으면 '세금·퇴직금' 생성). `TAX_RATE_ITEMS`(11개)·`TAX_RATE_STANDARD`(참고값). 프론트 '설정 > 세금·퇴직금 요율' 탭: 연도 선택 + 항목별 입력 + [표준 요율 불러오기](폼만 채움)·[저장]
   - [ ] **C-4. 간이세액표 업로드** — 국세청 표 엑셀 업로드 → `간이세액표` 시트
   - [ ] **D. 공휴일** — 목록 UI + 구글 캘린더 '대한민국 공휴일' 자동 채우기 → `공휴일` 시트
 
@@ -106,6 +106,8 @@ welfare-erp용 테스트 Apps Script + 빈 스프레드시트 만들어 `clasp p
 - [ ] **월급계산**: 무급일수가 휴가기록 '무급' 종류 × 사용시간/8 로 반영되는지 (`getUnpaidFromDocs` 삭제 영향)
 - [ ] 시간외수당: `getWorkSummary` 가 근태기록+시간외근로 직접 읽어 1배/1.5배 분리 (전월 실적)
 - [ ] 연차촉진 메일(`pr_mail1st`/`pr_mail2nd`): `CONFIG.LEAVE_REQUEST_HINT` 반영, `CHATBOT_HINT` 비면 박스 미표시
+- [ ] 정책·기준표: 5개 카드 표시, 시트 편집 링크(`#gid=`), 세금/퇴직금 탐지
+- [ ] 세금·퇴직금 요율 폼: 연도별 로드/저장, 표준 불러오기(폼만), 저장 후 시트 upsert. `getTaxRates` 정상 조회 → 월급 공제 반영
 - [ ] 퇴사 처리 → `recordOrgCareer` 가 경력상세에 `ORG_NAME` 근무처로 기록
 - [ ] **D. 공휴일 자동** — 구글 캘린더 '대한민국 공휴일' → `공휴일` 시트
 - [ ] **E. 간이세액표·4대보험요율** — 공식자료 채우기 + 갱신 절차
