@@ -1680,7 +1680,7 @@ const POLICY_SHEETS = [
   { name: '제수당', kind: 'manual',
     desc: '정액급식비·명절수당·관리자수당·가족수당 등 수당 설정.',
     usedBy: '연봉표 · 월급계산', screen: 'salary-settings' },
-  { name: '간이세액표', kind: 'assisted',
+  { name: '간이세액표', kind: 'assisted', screen: 'income-tax',
     desc: '근로소득 간이세액표(국세청). 급여구간·부양가족수별 소득세액.',
     usedBy: '월급계산의 소득세' },
   { name: '세금/퇴직금', kind: 'assisted', detect: '국민연금', screen: 'tax-rates',
@@ -2134,10 +2134,51 @@ function _mergeOvertime_(a, b) {
 }
 
 // =========================================================================
-// 근로소득 간이세액표 - 소득세 조회
+// 근로소득 간이세액표 - 소득세 조회 / 업로드 (정책·기준표 > 간이세액표)
 // 시트명 '간이세액표': A=급여이상, B=급여미만, C~M=부양가족 1인~11인 세액
-// (헤더 1행: 급여이상/급여미만/1인/2인/.../11인)
+// (헤더 1행: 급여이상/급여미만/1인/2인/.../11인). 급여이상·미만은 천원 단위.
 // =========================================================================
+const INCOME_TAX_HEADER = ['급여이상', '급여미만', '1인', '2인', '3인', '4인', '5인', '6인', '7인', '8인', '9인', '10인', '11인'];
+
+// 화면 표시용: 행수 + 앞/뒤 미리보기
+function getIncomeTaxTableInfo() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = ss.getSheetByName('간이세액표');
+  if (!sheet || sheet.getLastRow() < 2) return { rows: 0, head: [], tail: [] };
+  const n = sheet.getLastRow() - 1;
+  const head = sheet.getRange(2, 1, Math.min(4, n), 13).getValues();
+  const tail = n > 4 ? sheet.getRange(2 + n - Math.min(3, n), 1, Math.min(3, n), 13).getValues() : [];
+  return { rows: n, head: head, tail: tail };
+}
+
+// 업로드 반영: rows = [[이상, 미만, t1..t11]] 숫자 배열. 시트 전체 교체.
+function saveIncomeTaxTable(rowsJson) {
+  try {
+    const rows = (typeof rowsJson === 'string') ? JSON.parse(rowsJson) : (rowsJson || []);
+    if (!rows.length) return { success: false, message: '데이터가 없습니다.' };
+    const ss = SpreadsheetApp.openById(SS_ID);
+    let sheet = ss.getSheetByName('간이세액표');
+    if (!sheet) sheet = ss.insertSheet('간이세액표');
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, 13).setValues([INCOME_TAX_HEADER]);
+    sheet.getRange(1, 1, 1, 13).setFontWeight('bold').setBackground('#4472c4').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    const clean = rows.map(function (r) {
+      const o = [];
+      for (let c = 0; c < 13; c++) {
+        const v = r[c];
+        o.push((v == null || v === '') ? '' : (parseFloat(v.toString().replace(/,/g, '')) || 0));
+      }
+      return o;
+    }).filter(function (r) { return typeof r[0] === 'number' && !isNaN(r[0]); });
+    if (!clean.length) return { success: false, message: '유효한 구간 행이 없습니다 (첫 열=급여이상 숫자).' };
+    sheet.getRange(2, 1, clean.length, 13).setValues(clean);
+    return { success: true, message: clean.length + '개 급여구간 저장' };
+  } catch (e) {
+    return { success: false, message: '저장 실패: ' + e.toString() };
+  }
+}
+
 function lookupIncomeTax(taxableSalary, dependents) {
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('간이세액표');

@@ -91,30 +91,38 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
   - [x] **C-2. 기본급 편집** — `getBasicSalaryTable`/`saveBasicSalary` (시트 `기본급` A급수 B호봉 C금액 D연도, 없으면 생성). 프론트 '설정 > 기본급표' 탭: 엑셀 복사→붙여넣기(탭/콤마 매트릭스 파서) 또는 파일 업로드 → 미리보기 그리드 → 저장(같은 연도-스코프 교체). 첫 행=급수, 첫 열=호봉
     - TODO(별도): 레거시 `uploadBasicSalaryData`(UserProperties)·`getSalaryFromTable`·`calculateAnnualSalary`·프론트 `_handleBasicSalaryUpload`(버튼 없음) 죽은 코드 제거
   - [x] **C-3. 세금/퇴직금 요율 입력 폼** — `fillTaxRates`(하드코딩 write) 삭제. `getTaxRatesForYear`/`saveTaxRates` + `_findTaxSheet_`(B2='국민연금' 탐지, 없으면 '세금·퇴직금' 생성). `TAX_RATE_ITEMS`(11개)·`TAX_RATE_STANDARD`(참고값). 프론트 '설정 > 세금·퇴직금 요율' 탭: 연도 선택 + 항목별 입력 + [표준 요율 불러오기](폼만 채움)·[저장]
-  - [ ] **C-4. 간이세액표 업로드** — 국세청 표 엑셀 업로드 → `간이세액표` 시트
-  - [ ] **D. 공휴일** — 목록 UI + 구글 캘린더 '대한민국 공휴일' 자동 채우기 → `공휴일` 시트
-
-### 배포 후 실동작 검증 TODO (A~B는 문법 확인만 됨, 실행 미검증)
-
-welfare-erp용 테스트 Apps Script + 빈 스프레드시트 만들어 `clasp push` 후 확인:
-
-- [ ] `getAppConfig()` → 프론트 제목·메일 문구에 `CONFIG.ORG_NAME`/`APP_TITLE` 반영되는지
-- [ ] `setupWorkSheets()` 실행 → 근태기록/시간외근로/휴가기록 헤더 생성 (휴가기록에 `사용시간` E열)
-- [ ] **엑셀 업로드 3종**: 헤더명 매칭(별칭 포함), 직원ID＋연월일 덮어쓰기, 이름 자동보충, 미리보기, 반영 후 목록 갱신
-- [ ] **근태현황**: 근로시간(퇴근−출근−휴게1h) 계산, 미기입 표시
-- [ ] **시간외근무현황**: 시간 계산, 직원별 달력월 누적
-- [ ] **휴가현황**: 사용내역 목록, 잔여현황(부여−사용, 사용시간 반영), 반차 4h
-- [ ] **월급계산**: 무급일수가 휴가기록 '무급' 종류 × 사용시간/8 로 반영되는지 (`getUnpaidFromDocs` 삭제 영향)
-- [ ] 시간외수당: `getWorkSummary` 가 근태기록+시간외근로 직접 읽어 1배/1.5배 분리 (전월 실적)
-- [ ] 연차촉진 메일(`pr_mail1st`/`pr_mail2nd`): `CONFIG.LEAVE_REQUEST_HINT` 반영, `CHATBOT_HINT` 비면 박스 미표시
-- [ ] 정책·기준표: 5개 카드 표시, 시트 편집 링크(`#gid=`), 세금/퇴직금 탐지
-- [ ] 세금·퇴직금 요율 폼: 연도별 로드/저장, 표준 불러오기(폼만), 저장 후 시트 upsert. `getTaxRates` 정상 조회 → 월급 공제 반영
-- [ ] 기본급표: 엑셀 복사→붙여넣기 파싱(탭/콤마), 파일 업로드, 미리보기 그리드, 저장 후 `getAllSalaryData`/`getBasicSalary` 조회 정상. 연도 공통 vs 연도별 스코프
-- [ ] 퇴사 처리 → `recordOrgCareer` 가 경력상세에 `ORG_NAME` 근무처로 기록
-- [ ] **D. 공휴일 자동** — 구글 캘린더 '대한민국 공휴일' → `공휴일` 시트
-- [ ] **E. 간이세액표·4대보험요율** — 공식자료 채우기 + 갱신 절차
+  - [x] **C-4. 간이세액표 업로드** — `getIncomeTaxTableInfo`/`saveIncomeTaxTable`. 프론트 '설정 > 간이세액표' 탭: 국세청 엑셀 업로드 → "이상"/"미만" 헤더 자동탐지 + 1~11인 세액 → 미리보기(앞6/뒤3) → 시트 전체 교체. `INCOME_TAX_HEADER` 상수
+- [ ] **D. 공휴일** — 목록 UI + 구글 캘린더 '대한민국 공휴일' 자동 채우기 → `공휴일` 시트
 - [ ] **F. SETUP.md** — 스프레드시트 생성 → CONFIG 수정 → clasp 배포 → 트리거 설정
-- [ ] **G. 스프레드시트 부트스트랩** — `setupAllSheets()` 로 탭·헤더 자동 생성 (`_ensureSheet_` 확장)
+- [ ] **G. 스프레드시트 부트스트랩** — `setupAllSheets()` (`_ensureSheet_` 확장). 죽은 시트 `직원마스터` 정리. 검증용 시드(별도 파일)
+- [ ] **레거시 정리(별도)** — `uploadBasicSalaryData`/`getSalaryFromTable`/`calculateAnnualSalary`/`getSettings`(UserProperties 계열) + 프론트 `_handleBasicSalaryUpload`/`_parseBasicSalaryData` 죽은 코드 제거
+
+## 테스트 배포 (`~/welfare-erp-test/`)
+
+git 없는 배포 샌드박스. `sunrisingdata@sunrising.org`.
+- scriptId `1iy4de28iQK1f_YwjwBZdRzGr9a7lli0HFlVIKFz3gVnt8H4ag4i7DVq_`
+- 테스트 스프레드시트 `1eEAdIoXbDw3IgpKWLsGcL8SDRWFmJC9wnTgRYHNKNQk`
+- 웹앱 `AKfycbwUZ2Vj5FHdv-HuC_ow7N2KtFfbmfXaJwwND3vyAIGSObeQ423FCPiWsQDNjFt8Utyb`
+- `~/welfare-erp-test/redeploy.sh` = 코드 복사 + CONFIG 패치 + push + redeploy
+- `~/welfare-erp-test/검증가이드.md`
+
+### 실동작 검증 현황
+
+- [x] `getAppConfig` → 제목 "테스트 통합관리" 반영 확인
+- [x] `setupWorkSheets` → 3탭 생성 확인
+- [x] 정책·기준표 5카드 표시·링크 확인
+- [x] 세금·퇴직금 요율 폼 저장/재로드 확인
+- [x] 기본급표 — 목록형(급수·호봉·금액) 파일 업로드·저장 확인 (관리직/기능직 포함)
+- [ ] 엑셀 업로드 3종(근태/시간외/휴가): 헤더명 매칭, 직원ID＋연월일 덮어쓰기, 이름 자동보충, 반영 후 목록
+- [ ] 근태현황: 근로시간(퇴근−출근−휴게1h), 미기입
+- [ ] 시간외근무현황: 시간 계산, 직원별 달력월 누적
+- [ ] 휴가현황: 사용내역 목록, 반차 4h
+- [ ] 간이세액표 업로드: 국세청 엑셀 파싱, 미리보기, 전체 교체, `lookupIncomeTax` 정상
+- [ ] 기본급표 표형 파일 / 붙여넣기(탭·콤마) / 연도별 스코프
+- [ ] **월급계산** (시드 필요): 무급일수 = 휴가기록 '무급' × 사용시간/8, 시간외수당 1배/1.5배 분리(전월), 공제(`getTaxRates`), 간이세액표 소득세
+- [ ] 휴가 잔여: 부여(휴가대장) − 사용(휴가기록 사용시간)
+- [ ] 연차촉진 메일: `CONFIG.LEAVE_REQUEST_HINT` 반영, `CHATBOT_HINT` 비면 박스 미표시
+- [ ] 연봉표 / 호봉 산정 / 퇴사 시 `recordOrgCareer` (경력상세에 `ORG_NAME`)
 
 ## 컨벤션
 

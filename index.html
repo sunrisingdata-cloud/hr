@@ -133,7 +133,10 @@
         bsGrades: { type: Array },
         bsRows: { type: Array },
         bsPasteText: { type: String },
-        bsMsg: { type: String }
+        bsMsg: { type: String },
+        itInfo: { type: Object },
+        itPreview: { type: Array },
+        itMsg: { type: String }
       };
 
       _loadHobongStatus() {
@@ -551,6 +554,9 @@
         this.bsRows = [];
         this.bsPasteText = '';
         this.bsMsg = '';
+        this.itInfo = null;
+        this.itPreview = null;
+        this.itMsg = '';
         this.settingsYear = new Date().getFullYear();
         
         this._settingsLoaded = false;
@@ -2309,6 +2315,82 @@
         if (screen === 'salary-settings') this._loadSettingsByYear();
         if (screen === 'tax-rates') this._loadTaxRates();
         if (screen === 'basic-salary') this._loadBasicSalary();
+        if (screen === 'income-tax') this._loadIncomeTax();
+      }
+
+      // ===== 간이세액표 =====
+      _loadIncomeTax() {
+        google.script.run.withSuccessHandler((info) => {
+          this.itInfo = info || { rows: 0, head: [], tail: [] };
+          this.itPreview = null;
+          this.itMsg = '';
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          alert('불러오기 실패: ' + (err && err.message ? err.message : err));
+        }).getIncomeTaxTableInfo();
+      }
+
+      _itParse(m) {
+        if (!m || m.length < 2) return null;
+        const norm = s => (s == null ? '' : s).toString().trim();
+        const asNum = s => { const n = parseFloat(norm(s).replace(/,/g, '')); return isNaN(n) ? null : n; };
+        let cLo = 0, cHi = 1, cAmt0 = 2, headerRow = -1;
+        for (let i = 0; i < Math.min(m.length, 25); i++) {
+          const row = (m[i] || []).map(norm);
+          const li = row.findIndex(c => c.indexOf('이상') !== -1);
+          const hi = row.findIndex(c => c.indexOf('미만') !== -1);
+          if (li !== -1 && hi !== -1) { cLo = li; cHi = hi; cAmt0 = Math.max(li, hi) + 1; headerRow = i; break; }
+        }
+        const out = [];
+        for (let i = headerRow + 1; i < m.length; i++) {
+          const row = m[i] || [];
+          const lo = asNum(row[cLo]);
+          if (lo == null) continue;
+          const hi = asNum(row[cHi]);
+          const rec = [lo, (hi == null ? '' : hi)];
+          for (let d = 0; d < 11; d++) { const a = asNum(row[cAmt0 + d]); rec.push(a == null ? '' : a); }
+          out.push(rec);
+        }
+        return out.length ? out : null;
+      }
+
+      _itHandleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', raw: false });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const m = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+            const parsed = this._itParse(m);
+            if (!parsed) { this.itMsg = '❌ 표를 읽지 못했습니다. 국세청 간이세액표 엑셀( "이상"·"미만" 열 + 1~11인)이 맞는지 확인하세요.'; this.itPreview = null; this.requestUpdate(); return; }
+            this.itPreview = parsed;
+            this.itMsg = `📄 ${parsed.length}개 급여구간 읽음. 확인 후 [반영] — 시트 전체가 교체됩니다.`;
+            this.requestUpdate();
+          } catch (err) {
+            this.itMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.requestUpdate();
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      _itImport() {
+        if (!this.itPreview || !this.itPreview.length) { alert('먼저 파일을 올리세요.'); return; }
+        if (!confirm(`간이세액표 ${this.itPreview.length}개 구간을 반영합니다.\n기존 간이세액표는 전부 교체됩니다. 계속할까요?`)) return;
+        this.isLoading = true;
+        this.loadingMsg = '간이세액표 반영 중...';
+        google.script.run.withSuccessHandler((res) => {
+          this.isLoading = false;
+          this.itMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          if (res && res.success) { this.itPreview = null; this._loadIncomeTax(); }
+          this.requestUpdate();
+        }).withFailureHandler((err) => {
+          this.isLoading = false;
+          this.itMsg = '❌ 반영 실패: ' + (err && err.message ? err.message : err);
+          this.requestUpdate();
+        }).saveIncomeTaxTable(JSON.stringify(this.itPreview));
       }
 
       // ===== 기본급표 =====
@@ -3373,6 +3455,7 @@
                 <div class="nav-item ${this.activeTab === 'policy-tables' ? 'active' : ''}" @click="${() => { this.activeTab = 'policy-tables'; this._loadPolicyInfo(); }}">📋 정책·기준표</div>
                 <div class="nav-item ${this.activeTab === 'basic-salary' ? 'active' : ''}" @click="${() => { this.activeTab = 'basic-salary'; this._loadBasicSalary(); }}">💵 기본급표</div>
                 <div class="nav-item ${this.activeTab === 'tax-rates' ? 'active' : ''}" @click="${() => { this.activeTab = 'tax-rates'; this._loadTaxRates(); }}">🧮 세금·퇴직금 요율</div>
+                <div class="nav-item ${this.activeTab === 'income-tax' ? 'active' : ''}" @click="${() => { this.activeTab = 'income-tax'; this._loadIncomeTax(); }}">🧾 간이세액표</div>
               </div>
             ` : ''}
           </nav>
@@ -4461,6 +4544,45 @@
                     산재보험은 업종·기관마다 달라 반드시 공단 고지서로 확인.
                   </p>
                 </div>
+              </div>
+            ` : ''}
+
+            ${this.activeTab === 'income-tax' ? html`
+              <div>
+                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">🧾 간이세액표</h2>
+                <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
+                  국세청 <strong>근로소득 간이세액표</strong>. 월급계산의 소득세를 급여구간·부양가족수로 조회한다.
+                  <a href="https://www.nts.go.kr" target="_blank" rel="noopener" style="color:#0f766e;">국세청</a>에서 받은 엑셀을 올리면
+                  "이상"·"미만" 열과 1~11인 세액 열을 자동으로 찾아 <code>간이세액표</code> 시트를 <strong>전체 교체</strong>한다.
+                </p>
+
+                <div class="card" style="margin-bottom:20px;">
+                  <div style="font-size:13px; color:#64748b; margin-bottom:12px;">
+                    현재 시트: ${this.itInfo ? html`<strong style="color:${this.itInfo.rows ? '#0f766e' : '#dc2626'};">${this.itInfo.rows}개 구간</strong>` : '확인 중...'}
+                  </div>
+                  <div class="file-input-wrapper">
+                    <label class="file-input-label" for="itFile">📁 간이세액표 엑셀</label>
+                    <input type="file" id="itFile" accept=".csv,.xlsx,.xls" @change="${(e) => this._itHandleFile(e)}">
+                  </div>
+                  <button class="btn btn-primary" @click="${() => this._itImport()}" ?disabled="${!this.itPreview || !this.itPreview.length}" style="margin-left:10px; padding:12px 24px;">반영 (전체 교체)</button>
+                  ${this.itMsg ? html`<div style="margin-top:14px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.itMsg}</div>` : ''}
+                </div>
+
+                ${(this.itPreview && this.itPreview.length) || (this.itInfo && this.itInfo.rows) ? html`
+                  <div class="card" style="padding:0; overflow:auto;">
+                    <table style="font-size:12px;">
+                      <thead><tr><th>급여이상</th><th>급여미만</th>${['1인','2인','3인','4인','5인','6인','7인','8인','9인','10인','11인'].map(h => html`<th style="text-align:right;">${h}</th>`)}</tr></thead>
+                      <tbody>
+                        ${(this.itPreview
+                            ? this.itPreview.slice(0, 6).concat(this.itPreview.length > 9 ? [['…']] : []).concat(this.itPreview.slice(-3))
+                            : (this.itInfo.head || []).concat((this.itInfo.tail && this.itInfo.tail.length) ? [['…']] : []).concat(this.itInfo.tail || [])
+                          ).map(r => r[0] === '…'
+                            ? html`<tr><td colspan="13" style="text-align:center; color:#94a3b8;">…</td></tr>`
+                            : html`<tr>${r.map((c, i) => html`<td style="${i >= 2 ? 'text-align:right;' : ''}">${c === '' || c == null ? '-' : Number(c).toLocaleString()}</td>`)}</tr>`)}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : html`<div class="card"><p style="text-align:center; color:#64748b; padding:36px;">간이세액표가 아직 없습니다. 국세청 엑셀을 올리세요.</p></div>`}
               </div>
             ` : ''}
           </main>
