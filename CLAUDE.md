@@ -82,10 +82,9 @@ clasp deploy    # 웹앱 URL에 새 버전 반영
 - [x] **A. CONFIG 블록 + 기관명 일반화** — 하드코딩 `태화해뜨는샘` 제거, `_check*` 디버그 함수 제거
 - **B. 결재 제거 → 엑셀 업로드 기반** (결재입력 화면은 만들지 않음. 근태·시간외·휴가를 엑셀로 수동 입력)
   - [x] **B-1. 결재문서 의존 제거 (휴가잔여·무급)** — `bal_usedHours`·`getAllLeaveBalance`·`getWorkSummary` 를 `휴가기록` 기반으로, `getUnpaidFromDocs` 삭제. `휴가기록`에 `사용시간`(E열) 도입
-  - [ ] **B-2. 현황 조회 3화면** — `getAttendanceStatus`(결재문서) → `getAttendanceRecords`/`getOvertimeRecords`/`getLeaveUsageRecords`(raw 시트) 로 교체 + 프론트 재연결
-  - [ ] **B-3. 엑셀 업로드 입력** — 근태기록(직원ID 방식으로 교체)·시간외근로·휴가기록
-  - [ ] **B-4. 외근 제거** — `field-status` 탭, `attType==='외근'`, 결재문서 J열 로직 삭제
-  - [ ] **B-5. 엑셀 샘플 파일** — `samples/` 에 3개 양식
+  - [x] **B-2. 현황 조회 백엔드 + 외근 제거** — `getAttendanceStatus`+`_attEventDate_` 삭제 → `getAttendanceRecords`/`getOvertimeRecords`/`getLeaveUsageRecords`(raw 시트). 시간외근무현황 화면 재연결(`_loadOvertime`). `field-status`(외근현황) 탭·로직 전부 삭제
+  - [ ] **B-3. 엑셀 업로드 + 근태·휴가 현황 목록** — 근태기록(직원ID 방식으로 교체)·시간외근로·휴가기록 업로드 UI, 근태현황·휴가현황 화면에 조회 목록 추가(`getAttendanceRecords`/`getLeaveUsageRecords` 연결)
+  - [ ] **B-4. 엑셀 샘플 파일** — `samples/` 에 3개 양식
 - [ ] **C. 정책·기준표 화면** — 정책 시트 편집 UI (기본급·제수당 수동, 나머지 자동채우기)
 - [ ] **D. 공휴일 자동** — 구글 캘린더 '대한민국 공휴일' → `공휴일` 시트
 - [ ] **E. 간이세액표·4대보험요율** — 공식자료 채우기 + 갱신 절차

@@ -1745,7 +1745,7 @@ function getPrevMonthSalary(empId, year, month) {
 function setupWorkSheets() {
   _ensureSheet_('근태기록', ['직원ID','이름','연월일','출근시간','퇴근시간']);
   _ensureSheet_('시간외근로', ['직원ID','이름','연월일','시작시간','종료시간','비고']);
-  _ensureSheet_('휴가기록', ['직원ID','이름','연월일','휴가종류']);
+  _ensureSheet_('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간']);
   return { success: true, message: '근태/시간외/휴가 시트 준비 완료' };
 }
 
@@ -1771,8 +1771,8 @@ function addOvertime(rows) {     // 시간외근로 (슬랙 웹훅도 같은 컬
     rows, r => [r.empId, r.name, r.date, r.start, r.end, r.note || '']);
 }
 function addLeave(rows) {        // 휴가기록
-  return _appendRows_('휴가기록', ['직원ID','이름','연월일','휴가종류'],
-    rows, r => [r.empId, r.name, r.date, r.leaveType]);
+  return _appendRows_('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간'],
+    rows, r => [r.empId, r.name, r.date, r.leaveType, (r.hours != null && r.hours !== '') ? r.hours : 8]);
 }
 
 function _appendRows_(sheetName, headers, rows, mapFn) {
@@ -1787,15 +1787,15 @@ function _appendRows_(sheetName, headers, rows, mapFn) {
   }
 }
 
-// 휴가 기간(시작~종료)을 하루 1행으로 펼쳐 저장
-function addLeaveRange(empId, name, startDate, endDate, leaveType) {
+// 휴가 기간(시작~종료)을 하루 1행으로 펼쳐 저장. hoursPerDay 미지정 시 종일(8h)
+function addLeaveRange(empId, name, startDate, endDate, leaveType, hoursPerDay) {
   const rows = [];
   const s = new Date(startDate), e = new Date(endDate);
   for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
     const y = d.getFullYear();
     const m = ('0' + (d.getMonth() + 1)).slice(-2);
     const day = ('0' + d.getDate()).slice(-2);
-    rows.push({ empId: empId, name: name, date: y + '-' + m + '-' + day, leaveType: leaveType });
+    rows.push({ empId: empId, name: name, date: y + '-' + m + '-' + day, leaveType: leaveType, hours: (hoursPerDay != null ? hoursPerDay : 8) });
   }
   return addLeave(rows);
 }
@@ -2667,125 +2667,118 @@ function _buildPayslipHtml_(e, year, month) {
 }
 
 // =========================================================================
-// 근태 현황 조회 — 결재문서 시트 통합 조회
-// code.gs 맨 아래에 붙여넣기. (직원 드롭다운은 기존 getAllEmployeesFromMaster() 재사용)
-//
-// 결재문서 시트 열: A문서ID B신청일시 C신청자ID D신청자명 E소속팀 F직급
-//   G문서종류 H유급구분 I시간외시간 J외근정보 K결재자명 L결재결과
-//   M결재일시 N반려사유 O비고 P상세JSON  (Q~T 서명은 현황에서 미사용)
+// 근태 / 시간외 / 휴가 현황 조회 — 각 raw 시트를 직접 읽는다 (결재 개념 없음)
+// 공통 filters = { empName: '전체'|직원명, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
 // =========================================================================
 
-// filters = {
-//   type:    '전체' | '휴가' | '시간외' | '외근',
-//   empName: '전체' | 직원명,
-//   result:  '전체' | '승인' | '반려',
-//   from:    'YYYY-MM-DD' (선택),
-//   to:      'YYYY-MM-DD' (선택)
-// }
-// 반환: { rows: [...], summary: {count, otHours, leaveHours, fieldCount} }
-function getAttendanceStatus(filters) {
+function _attInRange_(ymd, filters) {
+  if (!ymd) return false;
+  if (filters.from && ymd < filters.from) return false;
+  if (filters.to && ymd > filters.to) return false;
+  return true;
+}
+
+// 근태기록(직원ID·이름·연월일·출근시간·퇴근시간)
+// 반환 rows: [{date,empId,name,checkIn,checkOut,workedHours,missing}]
+function getAttendanceRecords(filters) {
   filters = filters || {};
-  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('결재문서');
-  if (!sheet) return { rows: [], summary: { count: 0, otHours: 0, leaveHours: 0, fieldCount: 0 } };
-
-  const last = sheet.getLastRow();
-  if (last < 2) return { rows: [], summary: { count: 0, otHours: 0, leaveHours: 0, fieldCount: 0 } };
-
-  const values = sheet.getRange(2, 1, last - 1, 16).getValues(); // A~P
+  const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
+  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('근태기록');
+  const empty = { rows: [], summary: { count: 0, missingCount: 0, totalHours: 0 } };
+  if (!sheet || sheet.getLastRow() < 2) return empty;
+  const v = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
   const rows = [];
-  let otHours = 0, leaveHours = 0, fieldCount = 0;
-
-  for (let i = 0; i < values.length; i++) {
-    const r = values[i];
-    const docType  = (r[6]  || '').toString(); // G 문서종류
-    const name     = (r[3]  || '').toString(); // D 신청자명
-    const team     = (r[4]  || '').toString(); // E 소속팀
-    const rank     = (r[5]  || '').toString(); // F 직급
-    const result   = (r[11] || '').toString(); // L 결재결과
-    const approver = (r[10] || '').toString(); // K 결재자명
-    const otH      = parseFloat(r[8]) || 0;     // I 시간외시간
-
-    let detail = {};
-    try { detail = JSON.parse(r[15] || '{}'); } catch (e) { detail = {}; }
-
-    const eventDate = _attEventDate_(docType, detail, r[1]); // 이벤트 날짜(YYYY-MM-DD)
-
-    let content = '', usedHours = 0;
-    if (docType === '휴가') {
-      content = (detail.leaveType || '') + (detail.period ? ' / ' + detail.period : '');
-      usedHours = parseFloat(detail.usedHours) || 0;
-    } else if (docType === '시간외') {
-      content = (detail.start || '') + '~' + (detail.end || '');
-      usedHours = otH || (parseFloat(detail.hours) || 0);
-    } else if (docType === '외근') {
-      content = (detail.place || '') + (detail.work ? ' / ' + detail.work : '');
+  let missingCount = 0, totalHours = 0;
+  for (let i = 0; i < v.length; i++) {
+    const name = (v[i][1] || '').toString();
+    const ymd = _attYmd_(v[i][2]);
+    if (empName && name !== empName) continue;
+    if (!_attInRange_(ymd, filters)) continue;
+    const inH = _toHours_(v[i][3]), outH = _toHours_(v[i][4]);
+    const missing = (inH == null || outH == null);
+    let worked = 0;
+    if (!missing) {
+      const gross = Math.max(0, outH - inH);
+      worked = Math.max(0, gross - (gross > 4 ? 1 : 0));   // 4h 초과 시 휴게 1h
     }
-
-    // ---- 필터 ----
-    if (filters.type    && filters.type    !== '전체' && docType !== filters.type)   continue;
-    if (filters.empName && filters.empName !== '전체' && name    !== filters.empName) continue;
-    if (filters.result  && filters.result  !== '전체' && result  !== filters.result)  continue;
-    if (filters.from    && eventDate && eventDate < filters.from) continue;
-    if (filters.to      && eventDate && eventDate > filters.to)   continue;
-
-    // ---- 합계 (필터 통과분, 승인만 집계) ----
-    if (result === '승인') {
-      if (docType === '시간외') otHours += usedHours;
-      if (docType === '휴가')   leaveHours += usedHours;
-      if (docType === '외근')   fieldCount += 1;
-    }
-
+    if (missing) missingCount++;
+    totalHours += worked;
     rows.push({
-      docId: (r[0] || '').toString(),
-      date: eventDate,
-      applyTime: _attDateTime_(r[1]),
-      type: docType,
-      name: name, team: team, rank: rank,
-      content: content,
-      usedHours: usedHours,
-      result: result,
-      approver: approver,
-      reason: (docType === '외근') ? (detail.work || '') : (detail.reason || '')
+      date: ymd, empId: (v[i][0] || '').toString(), name: name,
+      checkIn: (v[i][3] || '').toString(), checkOut: (v[i][4] || '').toString(),
+      workedHours: Math.round(worked * 100) / 100, missing: missing
     });
   }
-
-  // 시간외 직원별 '달력상 월' 누적 (승인 건만, 오래된 순으로 누적)
-  const asc = rows.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const cumMap = {};
-  asc.forEach(function (row) {
-    if (row.type !== '시간외' || row.result !== '승인') return;
-    const ym = (row.date || '').slice(0, 7);
-    const key = row.name + '|' + ym;
-    cumMap[key] = (cumMap[key] || 0) + (parseFloat(row.usedHours) || 0);
-    row.cumHours = Math.round(cumMap[key] * 100) / 100;
-  });
-
   rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-  return {
-    rows: rows,
-    summary: {
-      count: rows.length,
-      otHours: Math.round(otHours * 100) / 100,
-      leaveHours: Math.round(leaveHours * 100) / 100,
-      fieldCount: fieldCount
-    }
-  };
+  return { rows: rows, summary: { count: rows.length, missingCount: missingCount, totalHours: Math.round(totalHours * 100) / 100 } };
 }
 
-// 이벤트 날짜 추출: 시간외/외근은 detail.date, 휴가는 period 첫 날짜, 없으면 신청일시
-function _attEventDate_(docType, detail, applyTimeVal) {
-  if ((docType === '시간외' || docType === '외근') && detail && detail.date) {
-    return _attYmd_(detail.date);
+// 시간외근로(직원ID·이름·연월일·시작시간·종료시간·비고)
+// 반환 rows: [{date,empId,name,start,end,hours,cumHours,note}] + 직원별 달력월 누적
+function getOvertimeRecords(filters) {
+  filters = filters || {};
+  const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
+  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('시간외근로');
+  const empty = { rows: [], summary: { count: 0, totalHours: 0 } };
+  if (!sheet || sheet.getLastRow() < 2) return empty;
+  const v = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+  const rows = [];
+  let totalHours = 0;
+  for (let i = 0; i < v.length; i++) {
+    const name = (v[i][1] || '').toString();
+    const ymd = _attYmd_(v[i][2]);
+    if (empName && name !== empName) continue;
+    if (!_attInRange_(ymd, filters)) continue;
+    const sH = _toHours_(v[i][3]), eH = _toHours_(v[i][4]);
+    const hours = (sH != null && eH != null) ? Math.max(0, eH - sH) : 0;
+    totalHours += hours;
+    rows.push({
+      date: ymd, empId: (v[i][0] || '').toString(), name: name,
+      start: (v[i][3] || '').toString(), end: (v[i][4] || '').toString(),
+      hours: Math.round(hours * 100) / 100, note: (v[i][5] || '').toString()
+    });
   }
-  if (docType === '휴가' && detail && detail.period) {
-    const m = detail.period.toString().match(/\d{4}-\d{2}-\d{2}/);
-    if (m) return m[0];
-  }
-  return _attYmd_(applyTimeVal);
+  // 오래된 순으로 직원별 '달력상 월' 누적
+  const asc = rows.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const cum = {};
+  asc.forEach(function (row) {
+    const key = row.name + '|' + (row.date || '').slice(0, 7);
+    cum[key] = (cum[key] || 0) + row.hours;
+    row.cumHours = Math.round(cum[key] * 100) / 100;
+  });
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return { rows: rows, summary: { count: rows.length, totalHours: Math.round(totalHours * 100) / 100 } };
 }
 
-// 값을 'YYYY-MM-DD'로 정규화 (결재문서는 소규모라 formatDate 사용 무방)
+// 휴가기록(직원ID·이름·연월일·휴가종류·사용시간)
+// 반환 rows: [{date,empId,name,leaveType,hours}]
+function getLeaveUsageRecords(filters) {
+  filters = filters || {};
+  const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
+  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('휴가기록');
+  const empty = { rows: [], summary: { count: 0, totalHours: 0, totalDays: 0 } };
+  if (!sheet || sheet.getLastRow() < 2) return empty;
+  const v = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+  const rows = [];
+  let totalHours = 0;
+  for (let i = 0; i < v.length; i++) {
+    const name = (v[i][1] || '').toString();
+    const ymd = _attYmd_(v[i][2]);
+    if (empName && name !== empName) continue;
+    if (!_attInRange_(ymd, filters)) continue;
+    let h = parseFloat(v[i][4]);
+    if (isNaN(h)) h = 8;
+    totalHours += h;
+    rows.push({
+      date: ymd, empId: (v[i][0] || '').toString(), name: name,
+      leaveType: (v[i][3] || '').toString(), hours: Math.round(h * 100) / 100
+    });
+  }
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return { rows: rows, summary: { count: rows.length, totalHours: Math.round(totalHours * 100) / 100, totalDays: Math.round(totalHours / 8 * 100) / 100 } };
+}
+
+// 값을 'YYYY-MM-DD'로 정규화
 function _attYmd_(val) {
   if (!val) return '';
   if (Object.prototype.toString.call(val) === '[object Date]') {
@@ -2806,7 +2799,7 @@ function _attDateTime_(val) {
 }
 
 // =========================================================================
-// 휴가대장 - 부여 관리 (부여 전용, 사용은 결재문서에서 계산)
+// 휴가대장 - 부여 관리 (부여 전용, 사용은 휴가기록 시트에서 계산)
 // code.gs 맨 아래에 추가.
 // 시트: A직원ID B이름 C부여일자 D적용연도 E항목 F부여일수 G사유/비고 H등록자
 // 부여 항목만 관리(보건·경조사·병가는 발생 시 사용이라 제외)
@@ -3189,7 +3182,7 @@ function av_registerTrigger() {
 // - 연차휴가: 최근 연차연도 부여 − 그 이후 사용 (사용날짜 기준, 이전분 소멸)
 //   (입사일 기준자·회계연도 기준자 자동 처리: 가장 최근 '연간부여일'이 그 구간 시작)
 // - 그 외(대체휴무·건강검진·가족돌봄·가족기념일·개관기념일·기타): 회계연도(올해) 부여 − 올해 사용
-// - 표시: 일 + 시간 (1일 = 8시간). 사용날짜 = 결재문서 P열 상세JSON의 날짜
+// - 표시: 일 + 시간 (1일 = 8시간). 사용날짜 = 휴가기록 C열(연월일)
 // =========================================================================
 
 var BAL_ITEMS = ['연차휴가', '대체휴무', '개관기념일', '건강검진휴가', '가족돌봄휴가', '가족기념일', '기타'];

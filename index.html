@@ -102,8 +102,6 @@
         expandSalary: { type: Boolean },
         settingsYear: { type: Number },
         expandAttendance: { type: Boolean },
-        attType: { type: String },
-        attResult: { type: String },
         attEmpName: { type: String },
         attFrom: { type: String },
         attTo: { type: String },
@@ -2680,9 +2678,7 @@
         });
         this.requestUpdate();
       }
-      _loadAttendance() {
-        this.isLoading = true;
-        this.loadingMsg = '근태 현황 불러오는 중...';
+      _attDefaultRange() {
         // 기간 미지정이면 이번 달로 기본 설정
         if (!this.attFrom || !this.attTo) {
           const now = new Date();
@@ -2691,21 +2687,21 @@
           this.attFrom = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-01';
           this.attTo = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(last.getDate());
         }
-        const filters = {
-          type: this.attType || '전체',
-          result: this.attResult || '전체',
-          empName: this.attEmpName || '전체',
-          from: this.attFrom,
-          to: this.attTo
-        };
+      }
+
+      _loadOvertime() {
+        this._attDefaultRange();
+        this.isLoading = true;
+        this.loadingMsg = '시간외 현황 불러오는 중...';
+        const filters = { empName: this.attEmpName || '전체', from: this.attFrom, to: this.attTo };
         google.script.run.withSuccessHandler((data) => {
-          this.attData = data || { rows: [], summary: { count: 0, otHours: 0, leaveHours: 0, fieldCount: 0 } };
+          this.attData = data || { rows: [], summary: { count: 0, totalHours: 0 } };
           this.isLoading = false;
           this.requestUpdate();
         }).withFailureHandler((err) => {
           alert('불러오기 실패: ' + (err && err.message ? err.message : err));
           this.isLoading = false;
-        }).getAttendanceStatus(filters);
+        }).getOvertimeRecords(filters);
       }
 
       _loadLeaveGrantItems() {
@@ -2950,8 +2946,7 @@
             ${this.expandAttendance ? html`
               <div style="margin-bottom: 12px;">
                 <div class="nav-item ${this.activeTab === 'attendance-record' ? 'active' : ''}" @click="${() => { this.activeTab = 'attendance-record'; }}">🕘 근태현황</div>
-                <div class="nav-item ${this.activeTab === 'ot-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'ot-status'; this.attType = '시간외'; this._loadAttendance(); }}">⏰ 시간외근무현황</div>
-                <div class="nav-item ${this.activeTab === 'field-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'field-status'; this.attType = '외근'; this._loadAttendance(); }}">🚗 외근현황</div>
+                <div class="nav-item ${this.activeTab === 'ot-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'ot-status'; this._loadOvertime(); }}">⏰ 시간외근무현황</div>
               </div>
             ` : ''}
 
@@ -3848,9 +3843,9 @@
                 ` : ''}
               </div>
             ` : ''}
-            ${(this.activeTab === 'ot-status' || this.activeTab === 'field-status') ? html`
+            ${this.activeTab === 'ot-status' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">${this.activeTab === 'ot-status' ? '⏰ 시간외근무현황' : '🚗 외근현황'}</h2>
+                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">⏰ 시간외근무현황</h2>
 
                 <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
                   <div>
@@ -3868,38 +3863,31 @@
                     <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">종료일</label>
                     <input type="date" .value="${this.attTo || ''}" @change="${(e) => this.attTo = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
                   </div>
-                  <button class="btn btn-primary" @click="${() => { this.attType = (this.activeTab === 'ot-status' ? '시간외' : '외근'); this.attResult = '전체'; this._loadAttendance(); }}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
+                  <button class="btn btn-primary" @click="${() => this._loadOvertime()}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
                 </div>
 
                 ${this.attData ? html`
-                  <div class="card" style="margin-bottom:20px; display:${this.activeTab === 'ot-status' ? 'none' : 'flex'}; gap:32px; flex-wrap:wrap;">
-                    <div><div style="font-size:13px; color:#64748b;">건수</div><div style="font-size:22px; font-weight:700; color:#0f172a;">${(this.attData.rows || []).filter(r => r.type === (this.activeTab === 'ot-status' ? '시간외' : '외근')).length}건</div></div>
-                    ${this.activeTab === 'ot-status' ? html`
-                      <div><div style="font-size:13px; color:#64748b;">시간외 총시간</div><div style="font-size:22px; font-weight:700; color:#0f766e;">${this.attData.summary.otHours}시간</div></div>
-                    ` : html`
-                      <div><div style="font-size:13px; color:#64748b;">외근 건수</div><div style="font-size:22px; font-weight:700; color:#b45309;">${this.attData.summary.fieldCount}건</div></div>
-                    `}
+                  <div class="card" style="margin-bottom:20px; display:flex; gap:32px; flex-wrap:wrap;">
+                    <div><div style="font-size:13px; color:#64748b;">건수</div><div style="font-size:22px; font-weight:700; color:#0f172a;">${(this.attData.summary && this.attData.summary.count) || 0}건</div></div>
+                    <div><div style="font-size:13px; color:#64748b;">시간외 총시간</div><div style="font-size:22px; font-weight:700; color:#0f766e;">${(this.attData.summary && this.attData.summary.totalHours) || 0}시간</div></div>
                   </div>
 
                   <div class="card" style="padding:0; overflow:hidden;">
                     <table>
                       <thead>
-                        <tr>
-                          <th>날짜</th><th>직원</th><th>${this.activeTab === 'ot-status' ? '사유' : '내용'}</th>
-                          ${this.activeTab === 'ot-status' ? html`<th>시간</th><th>누적시간</th>` : ''}
-                          <th>결재자</th>
-                        </tr>
+                        <tr><th>날짜</th><th>직원</th><th>시간대</th><th>시간</th><th>월 누적</th><th>비고</th></tr>
                       </thead>
                       <tbody>
-                        ${(this.attData.rows || []).filter(r => r.type === (this.activeTab === 'ot-status' ? '시간외' : '외근')).length ? (this.attData.rows || []).filter(r => r.type === (this.activeTab === 'ot-status' ? '시간외' : '외근')).map(r => html`
+                        ${(this.attData.rows || []).length ? (this.attData.rows || []).map(r => html`
                           <tr>
                             <td>${r.date || '-'}</td>
                             <td style="font-weight:500;">${r.name}</td>
-                            <td style="color:#475569;">${(this.activeTab === 'ot-status' ? r.reason : r.content) || '-'}</td>
-                            ${this.activeTab === 'ot-status' ? html`<td style="white-space:nowrap;">${r.content || '-'} (${r.usedHours || 0}시간)</td><td style="white-space:nowrap; font-weight:600;">${r.cumHours ? r.cumHours + '시간' : '-'}</td>` : ''}
-                            <td style="color:#64748b;">${r.approver || '-'}</td>
+                            <td style="white-space:nowrap; color:#475569;">${(r.start || '-') + ' ~ ' + (r.end || '-')}</td>
+                            <td style="white-space:nowrap;">${r.hours || 0}시간</td>
+                            <td style="white-space:nowrap; font-weight:600;">${r.cumHours ? r.cumHours + '시간' : '-'}</td>
+                            <td style="color:#64748b;">${r.note || '-'}</td>
                           </tr>
-                        `) : html`<tr><td colspan="${this.activeTab === 'ot-status' ? 6 : 5}" style="text-align:center; padding:32px; color:#94a3b8;">조회된 내역이 없습니다.</td></tr>`}
+                        `) : html`<tr><td colspan="6" style="text-align:center; padding:32px; color:#94a3b8;">조회된 내역이 없습니다.</td></tr>`}
                       </tbody>
                     </table>
                   </div>
