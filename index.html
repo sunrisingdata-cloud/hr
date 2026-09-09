@@ -2,63 +2,314 @@
 <html>
 <head>
   <base target="_top">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script type="module">
-    import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@2/all/lit-all.min.js';
+    import { LitElement, html, svg, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@2/all/lit-all.min.js';
 
     class HobongCalculator extends LitElement {
       static styles = css`
-        :host { display: grid; grid-template-columns: 240px 1fr; height: 100vh; font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
-        .loading { grid-column: 1/-1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: rgba(15,23,42,0.9); color: white; font-size: 24px; position: fixed; top:0; left:0; right:0; bottom:0; z-index: 9999;}
-        .sidebar { background-color: #0f172a; color: white; padding: 32px 20px; display: flex; flex-direction: column; gap: 12px; }
-        .nav-item { padding: 14px 20px; border-radius: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; color: #94a3b8; }
-        .nav-item.active { background-color: #10b981; color: white; }
-        .main-content { overflow-y: auto; display: flex; flex-direction: column; padding: 40px; }
-        .card { background: white; padding: 32px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 24px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background-color: #f1f5f9; color: #475569; font-weight: 600; }
-        tr:hover { background-color: #f8fafc; }
-        .badge { padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: bold; display: inline-block; }
-        .badge-cert { background: #dbeafe; color: #1d4ed8; }
-        .badge-none { background: #f1f5f9; color: #64748b; }
-        .badge-ratio { background: #fef3c7; color: #b45309; padding: 4px 10px; }
-        .badge-grade { background: #f3e8ff; color: #7e22ce; padding: 4px 8px; border-radius: 8px; font-size: 14px; font-weight: 800; margin-right: 8px; }
-        .result-box { background: #ecfdf5; border: 2px solid #10b981; border-radius: 16px; padding: 24px; text-align: center; }
-        .result-value { font-size: 36px; font-weight: 800; color: #047857; margin: 8px 0; }
-        
-        .input-group { display: flex; gap: 12px; align-items: center; }
-        input[type="text"], input[type="date"], input[type="number"], input[type="email"], select { padding: 14px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; outline: none; line-height: 1.5; box-sizing: border-box; height: auto; }
-        input[type="text"]::placeholder, input[type="email"]::placeholder { color: #cbd5e1; opacity: 0.6; }
-        input[type="text"]:focus, input[type="date"]:focus, input[type="email"]:focus, select:focus { border-color: #10b981; }
-        input[type="text"]:disabled, input[type="email"]:disabled { background-color: #f1f5f9; color: #64748b; cursor: not-allowed; }
-        .btn { padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; color: white; transition: 0.2s; }
-        .btn-primary { background: #10b981; } .btn-primary:hover { background: #059669; }
-        .btn-danger { background: #ef4444; padding: 6px 12px; font-size: 13px; } .btn-danger:hover { background: #dc2626; }
-        .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; transition: 0.2s; } .btn-outline:hover { background: #f1f5f9; }
-        .btn-sm { padding: 8px 12px; font-size: 13px; }
-        
-        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-        .form-group label { font-weight: 600; color: #475569; font-size: 14px; }
+        :host {
+          display: grid; grid-template-columns: 268px 1fr; height: 100vh;
+          font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+          background: #e9edeb; color: #17211d;
+          -webkit-font-smoothing: antialiased; letter-spacing: -0.01em;
+        }
+        .loading {
+          grid-column: 1/-1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 18px; height: 100vh; background: rgba(18,42,36,.92); color: #eaf3f0;
+          position: fixed; top:0; left:0; right:0; bottom:0; z-index: 9999;
+          backdrop-filter: blur(2px);
+        }
+        .loading .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.18); border-top-color: #34d399; animation: spin .8s linear infinite; }
+        .loading .txt { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; color: #c9ded7; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .loading .spin { animation-duration: 2.4s; } }
+
+        /* ── 사이드바: 배경 위에 떠 있는 라운드 패널 ───────────────── */
+        .sidebar {
+          margin: 14px 0 14px 14px; border-radius: 22px;
+          background: linear-gradient(180deg, #1b3a32 0%, #122a24 100%);
+          color: #e8f0ec; padding: 20px 14px 14px;
+          display: flex; flex-direction: column; overflow-y: auto;
+          box-shadow: 0 18px 44px -26px rgba(10,32,26,.6);
+        }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 3px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+
+        .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 20px; }
+        .brand-mark {
+          width: 38px; height: 38px; border-radius: 12px; flex: none;
+          background: linear-gradient(135deg, #10b981, #0d9488);
+          display: grid; place-items: center; color: #fff;
+          font-size: 13px; font-weight: 800; letter-spacing: -0.03em;
+          box-shadow: 0 6px 14px -6px rgba(16,185,129,.75);
+        }
+        .brand-name { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.025em; line-height: 1.25; }
+        .brand-sub { font-size: 11.5px; color: #86a49a; margin-top: 3px; }
+
+        .nav-cap { font-size: 10.5px; font-weight: 700; letter-spacing: .13em; color: #6f8f84; padding: 0 12px 8px; }
+        .nav-list { display: flex; flex-direction: column; gap: 2px; }
+
+        .nav-item {
+          position: relative; display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border-radius: 11px; cursor: pointer;
+          font-size: 14px; font-weight: 500; color: #a5bdb4; line-height: 1.3;
+          transition: background .15s, color .15s;
+        }
+        .nav-item svg { width: 18px; height: 18px; flex: none; opacity: .8; }
+        .nav-item:hover { background: rgba(255,255,255,.06); color: #e6f2ed; }
+        .nav-item.active {
+          background: rgba(16,185,129,.18); color: #fff; font-weight: 600;
+          box-shadow: inset 3px 0 0 #10b981;
+        }
+        .nav-item.active svg { color: #34d399; opacity: 1; }
+
+        .nav-group { display: flex; flex-direction: column; }
+        .nav-group-head {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border-radius: 11px; cursor: pointer;
+          font-size: 14px; font-weight: 600; color: #c3d8d0; line-height: 1.3;
+          transition: background .15s, color .15s;
+        }
+        .nav-group-head svg.ic { width: 18px; height: 18px; flex: none; opacity: .8; }
+        .nav-group-head:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .nav-group.open > .nav-group-head, .nav-group.has-active > .nav-group-head { color: #fff; }
+        .nav-group.has-active > .nav-group-head svg.ic { color: #34d399; opacity: 1; }
+        .chev { width: 13px; height: 13px; margin-left: auto; opacity: .5; transition: transform .2s ease; flex: none; }
+        .nav-group.open .chev { transform: rotate(90deg); }
+        .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; margin-left: auto; flex: none; }
+        .nav-dot + .chev { margin-left: 8px; }
+
+        /* 섹션 본문 — 배경을 달리해 그룹이 눈에 들어오게 */
+        .nav-group-body {
+          margin: 4px 0 8px; padding: 5px 6px; border-radius: 13px;
+          background: rgba(255,255,255,.05);
+          display: flex; flex-direction: column; gap: 2px;
+        }
+        .nav-group-body .nav-item { font-size: 13.5px; padding: 9px 11px; }
+
+        .side-foot {
+          margin-top: auto; padding: 14px 12px 2px; border-top: 1px solid rgba(255,255,255,.09);
+          font-size: 11px; color: #6f8f84; line-height: 1.7;
+        }
+
+        .main-content { overflow-y: auto; display: flex; flex-direction: column; padding: 26px 30px 48px; font-size: 14px; }
+        .main-content::-webkit-scrollbar { width: 10px; }
+        .main-content::-webkit-scrollbar-thumb { background: #cfd8d4; border-radius: 5px; border: 3px solid #e9edeb; }
+        .main-content::-webkit-scrollbar-track { background: transparent; }
+
+        /* ── 타이포그래피 ─────────────────────────────────────────── */
+        h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.03em; color: #16211d; line-height: 1.3; }
+        h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.025em; color: #16211d; line-height: 1.35; }
+        h4 { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; color: #2a3a34; line-height: 1.4; }
+        p { line-height: 1.65; }
+
+        /* 화면 머리말 — 제목 + 한 줄 설명 */
+        .page-head { margin: 0 0 22px; padding-bottom: 16px; border-bottom: 1px solid #dde4e1; }
+        .page-head h2 { margin: 0; }
+        .page-head .sub { margin: 6px 0 0; font-size: 13px; color: #74867f; line-height: 1.6; }
+        .page-head.row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+
+        /* ── 표면 ─────────────────────────────────────────────────── */
+        .card {
+          background: #fff; padding: 26px 28px; border-radius: 16px;
+          border: 1px solid #e4eae7;
+          box-shadow: 0 1px 2px rgba(16,40,33,.04), 0 16px 32px -28px rgba(16,40,33,.5);
+          margin-bottom: 20px;
+        }
+        .toolbar {
+          background: #fff; border: 1px solid #e4eae7; border-radius: 13px;
+          padding: 12px 14px; margin-bottom: 20px;
+          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+          box-shadow: 0 1px 2px rgba(16,40,33,.03);
+        }
+        .toolbar .sep { width: 1px; align-self: stretch; background: #e4eae7; margin: 0 2px; }
+        .toolbar .hint { font-size: 12.5px; color: #7c8f88; margin-left: auto; }
+        .fld-label { display: block; margin-bottom: 5px; font-weight: 600; color: #4a5b55; font-size: 12px; letter-spacing: -0.01em; }
+        .empty { text-align: center; padding: 52px 24px; color: #8b9c95; font-size: 13.5px; line-height: 1.7; }
+
+        /* ── 표 ───────────────────────────────────────────────────── */
+        table { width: 100%; border-collapse: collapse; margin-top: 14px; font-variant-numeric: tabular-nums; }
+        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #edf1ef; }
+        th {
+          background-color: #f4f7f6; color: #61736c; font-weight: 600;
+          font-size: 12px; letter-spacing: .02em; white-space: nowrap;
+          border-bottom: 1px solid #dde4e1;
+        }
+        td { font-size: 13.5px; color: #26332e; }
+        tbody tr:hover { background-color: #f7faf9; }
+        tbody tr:last-child td { border-bottom: 0; }
+        .num, td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        /* ── 배지 ─────────────────────────────────────────────────── */
+        .badge { padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; display: inline-block; letter-spacing: -0.01em; }
+        .badge-cert { background: #e0f2fe; color: #0369a1; }
+        .badge-none { background: #f1f5f4; color: #7c8f88; }
+        .badge-ratio { background: #fef3c7; color: #a16207; padding: 3px 9px; }
+        .badge-grade { background: #eef0fb; color: #4f46e5; padding: 3px 8px; border-radius: 7px; font-size: 12.5px; font-weight: 700; margin-right: 8px; }
+
+        .result-box { background: #f0fbf7; border: 1px solid #a7e3cd; border-radius: 14px; padding: 22px; text-align: center; }
+        .result-value { font-size: 32px; font-weight: 800; color: #0f766e; margin: 6px 0; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+
+        /* ── 입력 ─────────────────────────────────────────────────── */
+        .input-group { display: flex; gap: 10px; align-items: center; }
+        input[type="text"], input[type="date"], input[type="number"], input[type="email"], select, textarea {
+          padding: 9px 12px; border: 1px solid #d7dedb; border-radius: 9px;
+          font-size: 13.5px; font-family: inherit; color: #16211d; background: #fff;
+          outline: none; line-height: 1.5; box-sizing: border-box;
+          transition: border-color .15s, box-shadow .15s;
+        }
+        input[type="number"] { font-variant-numeric: tabular-nums; }
+        select { padding-right: 30px; cursor: pointer; }
+        input::placeholder, textarea::placeholder { color: #a8b5b0; opacity: 1; }
+        input:focus, select:focus, textarea:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15,118,110,.13); }
+        input:disabled, select:disabled, textarea:disabled { background-color: #f4f7f6; color: #8b9c95; cursor: not-allowed; }
+        input[type="checkbox"], input[type="radio"] { accent-color: #0f766e; width: 15px; height: 15px; cursor: pointer; }
+
+        /* ── 버튼 ─────────────────────────────────────────────────── */
+        .btn {
+          padding: 9px 16px; border-radius: 9px; font-weight: 600; font-size: 13.5px;
+          font-family: inherit; letter-spacing: -0.01em; cursor: pointer; border: 1px solid transparent;
+          color: white; transition: background .15s, border-color .15s, box-shadow .15s, transform .06s;
+          line-height: 1.4; white-space: nowrap;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: #0f766e; box-shadow: 0 1px 2px rgba(15,118,110,.28); }
+        .btn-primary:hover { background: #0c5f59; }
+        .btn-danger { background: #dc2626; padding: 6px 12px; font-size: 12.5px; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-outline { background: white; border-color: #d7dedb; color: #3f524b; box-shadow: 0 1px 2px rgba(16,40,33,.03); }
+        .btn-outline:hover { background: #f4f7f6; border-color: #c3cfca; }
+        .btn-ghost { background: transparent; border-color: transparent; color: #4a5b55; }
+        .btn-ghost:hover { background: #eaefed; }
+        .btn-sm { padding: 6px 11px; font-size: 12.5px; border-radius: 8px; }
+
+        /* ── 폼 ───────────────────────────────────────────────────── */
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .form-group label { font-weight: 600; color: #4a5b55; font-size: 12.5px; letter-spacing: -0.01em; }
         .form-group input, .form-group select { width: 100%; }
-        
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
-        .form-section { margin-bottom: 32px; }
-        .form-section h4 { margin: 0 0 16px 0; color: #334155; font-size: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
-        
-        .tab-buttons { display: flex; gap: 12px; margin-bottom: 24px; }
-        .tab-btn { padding: 12px 24px; border-radius: 8px; border: 2px solid #cbd5e1; background: white; color: #475569; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .tab-btn.active { background: #10b981; color: white; border-color: #10b981; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        .form-section { margin-bottom: 28px; }
+        .form-section h4 { margin: 0 0 14px 0; color: #16211d; font-size: 13.5px; padding-bottom: 9px; border-bottom: 1px solid #e4eae7; }
+
+        .tab-buttons { display: flex; gap: 6px; margin-bottom: 20px; background: #eaefed; padding: 4px; border-radius: 11px; width: fit-content; }
+        .tab-btn {
+          padding: 8px 16px; border-radius: 8px; border: none; background: transparent;
+          color: #61736c; font-weight: 600; font-size: 13.5px; font-family: inherit;
+          cursor: pointer; transition: .15s; letter-spacing: -0.01em;
+        }
+        .tab-btn:hover { color: #16211d; }
+        .tab-btn.active { background: #fff; color: #0f766e; box-shadow: 0 1px 3px rgba(16,40,33,.12); }
 
         .address-input-group { display: flex; gap: 8px; align-items: flex-end; }
         .address-input-group input { flex: 1; }
         .address-input-group button { flex-shrink: 0; }
 
         .file-input-wrapper { position: relative; }
-        .file-input-label { display: inline-block; padding: 10px 14px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; font-weight: 500; color: #475569; transition: 0.2s; }
-        .file-input-label:hover { border-color: #10b981; }
+        .file-input-label { display: inline-block; padding: 9px 14px; background: white; border: 1px solid #d7dedb; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13.5px; color: #3f524b; transition: .15s; }
+        .file-input-label:hover { border-color: #0f766e; color: #0f766e; }
         .file-input-wrapper input[type="file"] { display: none; }
-        .file-name { margin-top: 8px; padding: 8px; background: #f1f5f9; border-radius: 6px; font-size: 13px; color: #64748b; }
+        .file-name { margin-top: 8px; padding: 8px 10px; background: #f4f7f6; border-radius: 8px; font-size: 12.5px; color: #61736c; }
+
+        /* ── 연봉표(12개월 매트릭스) ──────────────────────────────── */
+        /* 행 높이가 들쭉날쭉해지는 원인: 항목 열이 좁아 라벨이 2줄로 접힘.
+           table-layout:fixed + colgroup 으로 열 폭을 고정하고 라벨은 한 줄로 자른다. */
+        .sal-scroll { overflow-x: auto; border: 1px solid #e4eae7; border-radius: 12px; }
+        .sal-table {
+          width: 100%; min-width: 1312px; margin: 0;
+          table-layout: fixed; border-collapse: separate; border-spacing: 0;
+          font-size: 12px; font-variant-numeric: tabular-nums;
+        }
+        .sal-table th, .sal-table td {
+          padding: 0 8px; height: 34px; text-align: right; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
+          border-bottom: 1px solid #edf1ef; border-right: 1px solid #f1f4f3;
+          background: #fff;
+        }
+        .sal-table thead th {
+          background: #4472c4; color: #fff; font-weight: 700; font-size: 11.5px;
+          letter-spacing: .01em; border-bottom: 0; border-right-color: rgba(255,255,255,.18);
+          position: sticky; top: 0; z-index: 2;
+        }
+        .sal-table thead th.sal-sum { background: #2f5496; }
+        .sal-table .sal-lbl {
+          text-align: left; font-weight: 600; color: #26332e; background: #f7f9f8;
+          position: sticky; left: 0; z-index: 1;
+          box-shadow: 1px 0 0 #e4eae7;
+        }
+        .sal-table thead th.sal-lbl { background: #4472c4; color: #fff; z-index: 3; box-shadow: 1px 0 0 rgba(255,255,255,.2); }
+        .sal-table td.sal-sum { background: #f2f5f9; font-weight: 700; color: #1e3a6b; }
+        .sal-table tbody tr:hover td { background: #f6faf9; }
+        .sal-table tbody tr:hover td.sal-lbl { background: #eef3f1; }
+        .sal-table tbody tr:hover td.sal-sum { background: #e9eff7; }
+        .sal-table tr.sal-total td { background: #e8f5e9; font-weight: 700; border-top: 1px solid #2e7d32; border-bottom: 0; }
+        .sal-table tr.sal-total td.sal-lbl { background: #c8e6c9; }
+        .sal-table tr.sal-total td.sal-sum { background: #2e7d32; color: #fff; }
+
+        /* ── 휴가 잔여 매트릭스 ───────────────────────────────────── */
+        .bal-scroll { overflow-x: auto; border: 1px solid #e4eae7; border-radius: 12px; }
+        .bal-table { width: 100%; min-width: 900px; margin: 0; border-collapse: separate; border-spacing: 0; }
+        .bal-table th, .bal-table td {
+          padding: 9px 12px; text-align: center; white-space: nowrap; background: #fff;
+          border-bottom: 1px solid #edf1ef; border-right: 1px solid #f1f4f3;
+        }
+        .bal-table thead th {
+          background: #f4f7f6; color: #61736c; font-size: 11.5px; font-weight: 600;
+          position: sticky; top: 0; z-index: 2; border-bottom: 1px solid #dde4e1;
+        }
+        .bal-table .bal-name {
+          text-align: left; font-weight: 600; color: #16211d; font-size: 13.5px;
+          position: sticky; left: 0; z-index: 1; background: #f7f9f8; box-shadow: 1px 0 0 #e4eae7;
+        }
+        .bal-table thead th.bal-name { background: #f4f7f6; z-index: 3; }
+        .bal-table tbody tr:hover td { background: #f6faf9; }
+        .bal-table tbody tr:hover td.bal-name { background: #eef3f1; }
+        .bal-table tbody tr:last-child td { border-bottom: 0; }
+        .bal-rem { font-size: 14px; font-weight: 700; color: #16211d; font-variant-numeric: tabular-nums; line-height: 1.35; }
+        .bal-rem.zero { color: #b0bdb8; font-weight: 600; }
+        .bal-sub { font-size: 10.5px; color: #8b9c95; margin-top: 2px; font-variant-numeric: tabular-nums; }
+        .bal-none { color: #d3dbd8; }
+
+        /* ── 첫 설정 안내 (사본 만들기 배포) ──────────────────────── */
+        .setup-card {
+          background: #fffaf2; border: 1px solid #f0d9b5; border-left: 3px solid #d97706;
+          border-radius: 14px; padding: 20px 22px; margin-bottom: 22px;
+        }
+        .setup-step {
+          display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+          color: #b45309; background: #fbeed9; padding: 3px 9px; border-radius: 6px; margin-bottom: 10px;
+        }
+        .setup-card h3 { margin: 0 0 6px; color: #7c4a06; }
+        .setup-card p { margin: 0 0 14px; font-size: 13px; color: #8a5a1d; line-height: 1.65; }
+        .setup-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .setup-next { margin: 14px 0 0 !important; font-size: 12.5px !important; color: #9a6a2c !important; }
+        .setup-next code { background: #f5e6cd; color: #7c4a06; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+
+        /* ── 대시보드 바로가기 ────────────────────────────────────── */
+        .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; }
+        .home-card {
+          background: #fff; border: 1px solid #e4eae7; border-radius: 14px; padding: 20px;
+          cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s;
+          box-shadow: 0 1px 2px rgba(16,40,33,.03);
+        }
+        .home-card:hover { border-color: #9fd4c8; box-shadow: 0 8px 22px -14px rgba(15,118,110,.4); transform: translateY(-1px); }
+        .hc-ic {
+          display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+          background: #eaf6f3; color: #0f766e; margin-bottom: 13px;
+        }
+        .hc-ic svg { width: 19px; height: 19px; }
+        .hc-t { font-size: 14.5px; font-weight: 700; color: #16211d; letter-spacing: -0.02em; }
+        .hc-d { font-size: 12.5px; color: #7c8f88; margin-top: 4px; line-height: 1.55; }
+
+        /* ── 상태 메시지 ──────────────────────────────────────────── */
+        .msg { padding: 10px 13px; border-radius: 9px; font-size: 13px; font-weight: 500; line-height: 1.6; }
+        .msg-ok { background: #ecfdf5; color: #0f766e; border: 1px solid #b6e6d5; }
+        .msg-err { background: #fef2f2; color: #b91c1c; border: 1px solid #f6cccc; }
+        .msg-info { background: #f4f7f6; color: #4a5b55; border: 1px solid #e4eae7; }
 
         @media print {
           :host { display: block; height: auto; }
@@ -67,6 +318,12 @@
           .main-content { padding: 0 !important; overflow: visible !important; }
           .salary-print-page { page-break-after: always; box-shadow: none; padding: 0; margin-bottom: 0; }
           .salary-print-page:last-child { page-break-after: auto; }
+          /* 인쇄에서는 가로 스크롤·고정열이 필요 없고 지면 폭에 맞춰야 한다 */
+          .sal-scroll, .bal-scroll { overflow: visible !important; border: 0 !important; }
+          .sal-table { min-width: 0 !important; width: 100% !important; font-size: 9.5px !important; }
+          .sal-table th, .sal-table td { height: auto !important; padding: 4px 5px !important; }
+          .sal-table thead th, .sal-table .sal-lbl { position: static !important; box-shadow: none !important; }
+          .sal-table colgroup col:first-child { width: 110px !important; }
           .salary-emp-block { break-inside: avoid; page-break-inside: avoid; }
         }
       `;
@@ -96,6 +353,7 @@
         basicSalarySource: { type: String },
         hobongStatus: { type: Array },
         hobongStatusMsg: { type: String },
+        hobongQuery: { type: String },
         expandHr: { type: Boolean },
         expandSalary: { type: Boolean },
         settingsYear: { type: Number },
@@ -144,7 +402,7 @@
       };
 
       _loadHobongStatus() {
-        this.hobongStatusMsg = '⏳ 데이터를 요청하는 중...';
+        this.hobongStatusMsg = '데이터를 요청하는 중...';
         this.requestUpdate();
         google.script.run
           .withSuccessHandler((data) => {
@@ -154,7 +412,7 @@
           })
           .withFailureHandler((err) => {
             console.error('[전직원호봉현황] 로드 실패:', err);
-            this.hobongStatusMsg = '❌ 오류: ' + (err && err.message ? err.message : err);
+            this.hobongStatusMsg = '오류: ' + (err && err.message ? err.message : err);
             this.requestUpdate();
           })
           .getAllHobongStatus();
@@ -541,6 +799,7 @@
         this.reducedWork = [];
         this.hobongStatus = [];
         this.hobongStatusMsg = '';
+        this.hobongQuery = '';
         this.expandHr = true;
         this.expandSalary = false;
         this.expandLeave = false;
@@ -870,7 +1129,7 @@
         return html`
           <div class="form-grid">
             <div class="form-section">
-              <h4>👤 기본 정보</h4>
+              <h4>기본 정보</h4>
               <div class="form-group">
                 <label>직원ID ${this.employmentMode === 'detail' ? '' : '(자동생성)'}</label>
                 <input type="text" .value="${this.formData.id}" @change="${(e) => this._updateFormData('id', e.target.value)}" ?disabled="${this.employmentMode !== 'detail'}">
@@ -905,7 +1164,7 @@
             </div>
 
             <div class="form-section">
-              <h4>🏢 조직 정보</h4>
+              <h4>조직 정보</h4>
               <div class="form-group">
                 <label>이메일</label>
                 <input type="email" .value="${this.formData.email}" @change="${(e) => this._updateFormData('email', e.target.value)}" placeholder="example@example.com">
@@ -947,7 +1206,7 @@
 
           <div class="form-grid" style="margin-top: 32px;">
             <div class="form-section">
-              <h4>👤 개인 정보</h4>
+              <h4>개인 정보</h4>
               <div class="form-group">
                 <label>DICS</label>
                 <input type="text" .value="${this.formData.dics}" @change="${(e) => this._updateFormData('dics', e.target.value)}">
@@ -962,12 +1221,12 @@
                   <label class="file-input-label">파일 선택</label>
                   <input type="file" id="signatureFile" @change="${this._handleFileSelect}">
                 </div>
-                ${this.selectedFile ? html`<div class="file-name">📄 ${this.selectedFile}</div>` : ''}
+                ${this.selectedFile ? html`<div class="file-name">${this.selectedFile}</div>` : ''}
               </div>
             </div>
 
             <div class="form-section">
-              <h4>📜 자격증</h4>
+              <h4>자격증</h4>
               <div class="form-group">
                 <label>자격증</label>
                 <select @change="${(e) => this._updateFormData('certificate', e.target.value)}">
@@ -994,7 +1253,7 @@
 
           <div class="form-grid" style="margin-top: 32px;">
             <div class="form-section">
-              <h4>🚗 운전면허</h4>
+              <h4>운전면허</h4>
               <div class="form-group">
                 <label>운전면허증</label>
                 <select @change="${(e) => this._updateFormData('license', e.target.value)}">
@@ -1016,7 +1275,7 @@
             </div>
 
             <div class="form-section">
-              <h4>📅 ${this.employmentMode === 'detail' ? '입퇴사 정보' : '입사 정보'}</h4>
+              <h4>${this.employmentMode === 'detail' ? '입퇴사 정보' : '입사 정보'}</h4>
               <div class="form-group">
                 <label>입사일 *</label>
                 <input type="date" .value="${this.formData.joinDate}" @change="${(e) => this._updateFormData('joinDate', e.target.value)}" style="border-color: #10b981; border-width: 2px; font-weight: 600;">
@@ -1028,7 +1287,7 @@
                 </div>
               ` : ''}
               <button class="btn btn-primary" style="width: 100%; margin-top: 32px; padding: 14px; font-size: 16px;" @click="${this._handleSaveForm}">
-                ${this.employmentMode === 'detail' ? '💾 저장' : '✅ 신입직원 등록'}
+                ${this.employmentMode === 'detail' ? '저장' : '신입직원 등록'}
               </button>
             </div>
           </div>
@@ -1381,11 +1640,11 @@
           const htmlBody = this._buildSalaryEmailHtml(emp, this.allSalaryData.settings);
           google.script.run
             .withSuccessHandler((res) => {
-              results.push((res && res.success ? '✅ ' : '❌ ') + emp.name + (res && res.message ? ' (' + res.message + ')' : ''));
+              results.push((res && res.success ? '성공 · ' : '실패 · ') + emp.name + (res && res.message ? ' (' + res.message + ')' : ''));
               done();
             })
             .withFailureHandler((err) => {
-              results.push('❌ ' + emp.name + ' (' + (err && err.message ? err.message : err) + ')');
+              results.push('' + emp.name + ' (' + (err && err.message ? err.message : err) + ')');
               done();
             })
             .sendSalaryEmail(emp.id, subject, htmlBody);
@@ -2088,27 +2347,32 @@
               <span style="font-size: 14px; color: #64748b; margin-left: 16px;">(${(Array.isArray(emp.gradeByMonth) && emp.gradeByMonth.length === 12) ? this._hobonLabelByMonth(emp.gradeByMonth, emp.hobonByMonth) : ((emp.grade || '-') + ' / ' + this._hobonLabel(emp.preHobon != null ? emp.preHobon : emp.hobon, emp.promoMonth))})</span>
               <label class="no-print" style="float:right; font-size:13px; font-weight:500; color:#475569; cursor:pointer;"><input type="checkbox" ?checked="${this.emailSelected[emp.id]}" @change="${(e) => { this.emailSelected = { ...this.emailSelected, [emp.id]: e.target.checked }; this.requestUpdate(); }}"> 메일 선택</label>
             </h3>
-            <div style="overflow-x: auto;">
-              <table style="width: 100%; min-width: 1200px; font-size: 12px; border-collapse: collapse;">
+            <div class="sal-scroll">
+              <table class="sal-table">
+                <colgroup>
+                  <col style="width:168px">
+                  ${monthHdr.map(() => html`<col style="width:86px">`)}
+                  <col style="width:112px">
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style="width: 80px; padding: 6px 8px; text-align: left; background: #4472c4; color: white; font-weight: bold;">항목</th>
-                    ${monthHdr.map(m => html`<th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">${m}</th>`)}
-                    <th style="width: 90px; padding: 6px 8px; text-align: right; background: #2f5496; color: white; font-weight: bold;">합계</th>
+                    <th class="sal-lbl">항목</th>
+                    ${monthHdr.map(m => html`<th>${m}</th>`)}
+                    <th class="sal-sum">합계</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${rows.map(r => html`
-                    <tr style="border-bottom: 1px solid #e0e0e0;">
-                      <td style="padding: 6px 8px; font-weight: 600; background: #f5f5f5;">${r.name}</td>
-                      ${r.vals.map(v => html`<td style="padding: 6px 8px; text-align: right; border-right: 1px solid #e0e0e0;">${v > 0 ? v.toLocaleString() : '-'}</td>`)}
-                      <td style="padding: 6px 8px; text-align: right; background: #f0f0f0; font-weight: bold;">${r.total.toLocaleString()}</td>
+                    <tr>
+                      <td class="sal-lbl" title="${r.name}">${r.name}</td>
+                      ${r.vals.map(v => html`<td>${v > 0 ? v.toLocaleString() : '·'}</td>`)}
+                      <td class="sal-sum">${r.total.toLocaleString()}</td>
                     </tr>
                   `)}
-                  <tr style="background: #e8f5e9; border-bottom: 2px solid #2e7d32;">
-                    <td style="padding: 6px 8px; font-weight: 700; background: #c8e6c9;">합계</td>
-                    ${monthlyTotals.map(t => html`<td style="padding: 6px 8px; text-align: right; border-right: 1px solid #81c784; font-weight: bold;">${t.toLocaleString()}</td>`)}
-                    <td style="padding: 6px 8px; text-align: right; background: #2e7d32; color: white; font-weight: bold;">${grandTotal.toLocaleString()}</td>
+                  <tr class="sal-total">
+                    <td class="sal-lbl">합계</td>
+                    ${monthlyTotals.map(t => html`<td>${t.toLocaleString()}</td>`)}
+                    <td class="sal-sum">${grandTotal.toLocaleString()}</td>
                   </tr>
                 </tbody>
               </table>
@@ -2277,18 +2541,18 @@
         this.loadingMsg = '구글 캘린더에서 공휴일 가져오는 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          if (!res || !res.success) { this.hlMsg = '❌ ' + (res && res.message ? res.message : '가져오기 실패'); this.requestUpdate(); return; }
+          if (!res || !res.success) { this.hlMsg = '' + (res && res.message ? res.message : '가져오기 실패'); this.requestUpdate(); return; }
           const have = {};
           this.hlRows.forEach(r => have[r.date] = true);
           let added = 0;
           (res.holidays || []).forEach(h => { if (!have[h.date]) { this.hlRows = [...this.hlRows, { date: h.date, name: h.name }]; added++; } });
           this.hlRows = this.hlRows.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
           this.hlDirty = true;
-          this.hlMsg = `📅 ${res.holidays.length}개 중 ${added}개 새로 추가됨. 확인 후 [저장].`;
+          this.hlMsg = `${res.holidays.length}개 중 ${added}개 새로 추가됨. 확인 후 [저장].`;
           this.requestUpdate();
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.hlMsg = '❌ 가져오기 실패: ' + (err && err.message ? err.message : err) + ' (권한 승인이 필요할 수 있습니다)';
+          this.hlMsg = '가져오기 실패: ' + (err && err.message ? err.message : err) + ' (권한 승인이 필요할 수 있습니다)';
           this.requestUpdate();
         }).fetchKoreanHolidays(this.hlYear);
       }
@@ -2309,12 +2573,12 @@
         this.loadingMsg = '공휴일 저장 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          this.hlMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.hlMsg = (res && res.success ? '' : '') + (res && res.message ? res.message : '');
           if (res && res.success) this._loadHolidays();
           this.requestUpdate();
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.hlMsg = '❌ 저장 실패: ' + (err && err.message ? err.message : err);
+          this.hlMsg = '저장 실패: ' + (err && err.message ? err.message : err);
           this.requestUpdate();
         }).saveHolidays(JSON.stringify(rows), this.hlYear);
       }
@@ -2365,12 +2629,12 @@
             const ws = wb.Sheets[wb.SheetNames[0]];
             const m = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
             const parsed = this._itParse(m);
-            if (!parsed) { this.itMsg = '❌ 표를 읽지 못했습니다. 국세청 간이세액표 엑셀( "이상"·"미만" 열 + 1~11인)이 맞는지 확인하세요.'; this.itPreview = null; this.requestUpdate(); return; }
+            if (!parsed) { this.itMsg = '표를 읽지 못했습니다. 국세청 간이세액표 엑셀( "이상"·"미만" 열 + 1~11인)이 맞는지 확인하세요.'; this.itPreview = null; this.requestUpdate(); return; }
             this.itPreview = parsed;
-            this.itMsg = `📄 ${parsed.length}개 급여구간 읽음. 확인 후 [반영] — 시트 전체가 교체됩니다.`;
+            this.itMsg = `${parsed.length}개 급여구간 읽음. 확인 후 [반영] — 시트 전체가 교체됩니다.`;
             this.requestUpdate();
           } catch (err) {
-            this.itMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.itMsg = '파일 읽기 실패: ' + err.message;
             this.requestUpdate();
           }
         };
@@ -2384,12 +2648,12 @@
         this.loadingMsg = '간이세액표 반영 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          this.itMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.itMsg = (res && res.success ? '' : '') + (res && res.message ? res.message : '');
           if (res && res.success) { this.itPreview = null; this._loadIncomeTax(); }
           this.requestUpdate();
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.itMsg = '❌ 반영 실패: ' + (err && err.message ? err.message : err);
+          this.itMsg = '반영 실패: ' + (err && err.message ? err.message : err);
           this.requestUpdate();
         }).saveIncomeTaxTable(JSON.stringify(this.itPreview));
       }
@@ -2480,7 +2744,7 @@
 
       _bsApply(parsed, srcLabel) {
         if (!parsed || !parsed.grades.length || !parsed.rows.length) {
-          this.bsMsg = '❌ 표를 읽지 못했습니다. 헤더에 (급수·호봉·금액) 열이 있거나, 첫 행=급수·첫 열=호봉 형식이어야 합니다.';
+          this.bsMsg = '표를 읽지 못했습니다. 헤더에 (급수·호봉·금액) 열이 있거나, 첫 행=급수·첫 열=호봉 형식이어야 합니다.';
           this.requestUpdate(); return;
         }
         this.bsGrades = parsed.grades;
@@ -2488,7 +2752,7 @@
         let msg = `${srcLabel} ${parsed.rows.length}개 호봉 × ${parsed.grades.length}개 급수 읽음 (${parsed.grades.join(', ')}).`;
         if (parsed.yearsFound && parsed.yearsFound.length > 1) {
           this.bsYear = parsed.year || this.bsYear;
-          msg += `\n⚠️ 파일에 여러 연도(${parsed.yearsFound.join(', ')})가 있어 '${parsed.year || '연도 공통'}' 것만 읽었습니다. 다른 연도는 위에서 연도를 바꿔 다시 올리세요.`;
+          msg += `\n파일에 여러 연도(${parsed.yearsFound.join(', ')})가 있어 '${parsed.year || '연도 공통'}' 것만 읽었습니다. 다른 연도는 위에서 연도를 바꿔 다시 올리세요.`;
         } else if (parsed.year) {
           this.bsYear = parsed.year;
           msg += `\n연도 ${parsed.year} 로 저장됩니다.`;
@@ -2502,7 +2766,7 @@
         const text = (this.bsPasteText || '').trim();
         if (!text) { alert('붙여넣을 표가 없습니다.'); return; }
         const matrix = text.split(/\r?\n/).map(line => (line.indexOf('\t') !== -1 ? line.split('\t') : line.split(',')).map(c => c.trim()));
-        this._bsApply(this._bsParseTable(matrix), '📋');
+        this._bsApply(this._bsParseTable(matrix), '');
       }
 
       _bsHandleFile(e) {
@@ -2514,9 +2778,9 @@
             const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', raw: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-            this._bsApply(this._bsParseTable(matrix), '📄');
+            this._bsApply(this._bsParseTable(matrix), '');
           } catch (err) {
-            this.bsMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.bsMsg = '파일 읽기 실패: ' + err.message;
             this.requestUpdate();
           }
         };
@@ -2538,13 +2802,13 @@
         this.loadingMsg = '기본급표 저장 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          this.bsMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.bsMsg = (res && res.success ? '' : '') + (res && res.message ? res.message : '');
           this.bsPasteText = '';
           if (res && res.success) this._loadBasicSalary();
           this.requestUpdate();
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.bsMsg = '❌ 저장 실패: ' + (err && err.message ? err.message : err);
+          this.bsMsg = '저장 실패: ' + (err && err.message ? err.message : err);
           this.requestUpdate();
         }).saveBasicSalary(JSON.stringify(flat), this.bsYear || '');
       }
@@ -2577,7 +2841,7 @@
         this.loadingMsg = '요율 저장 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          alert((res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : ''));
+          alert((res && res.success ? '' : '') + (res && res.message ? res.message : ''));
           if (res && res.success) this._loadTaxRates();
         }).withFailureHandler((err) => {
           this.isLoading = false;
@@ -3220,7 +3484,7 @@
             const wb = XLSX.read(data, { type: 'array', raw: false });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const arr = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-            if (!arr.length) { this.wsMsg = '❌ 빈 파일입니다.'; this.requestUpdate(); return; }
+            if (!arr.length) { this.wsMsg = '빈 파일입니다.'; this.requestUpdate(); return; }
             // 헤더 → 필드별 열 인덱스
             const header = (arr[0] || []).map(h => this._wsNorm(h));
             const colOf = {};
@@ -3231,7 +3495,7 @@
               }
             });
             if (colOf.empId == null || colOf.date == null) {
-              this.wsMsg = '❌ 헤더에 "직원ID"·"연월일" 열이 필요합니다. (첫 행이 헤더)';
+              this.wsMsg = '헤더에 "직원ID"·"연월일" 열이 필요합니다. (첫 행이 헤더)';
               this.requestUpdate(); return;
             }
             const rows = [];
@@ -3243,12 +3507,12 @@
               Object.keys(spec.fields).forEach(f => o[f] = get(f));
               rows.push(o);
             }
-            if (!rows.length) { this.wsMsg = '❌ 읽을 데이터가 없습니다.'; this.requestUpdate(); return; }
+            if (!rows.length) { this.wsMsg = '읽을 데이터가 없습니다.'; this.requestUpdate(); return; }
             this.wsPreview = rows;
-            this.wsMsg = `📄 ${rows.length}건 읽음. 확인 후 [${spec.label}에 반영]을 누르세요.`;
+            this.wsMsg = `${rows.length}건 읽음. 확인 후 [${spec.label}에 반영]을 누르세요.`;
             this.requestUpdate();
           } catch (err) {
-            this.wsMsg = '❌ 파일 읽기 실패: ' + err.message;
+            this.wsMsg = '파일 읽기 실패: ' + err.message;
             this.requestUpdate();
           }
         };
@@ -3264,7 +3528,7 @@
         this.loadingMsg = spec.label + ' 반영 중...';
         google.script.run.withSuccessHandler((res) => {
           this.isLoading = false;
-          this.wsMsg = (res && res.success ? '✅ ' : '❌ ') + (res && res.message ? res.message : '');
+          this.wsMsg = (res && res.success ? '' : '') + (res && res.message ? res.message : '');
           this.wsPreview = null;
           this.wsFileName = '';
           this.requestUpdate();
@@ -3273,7 +3537,7 @@
           if (kind === 'leave') { this._loadLeaveUsage(); this._loadAllBalance(); }
         }).withFailureHandler((err) => {
           this.isLoading = false;
-          this.wsMsg = '❌ 반영 실패: ' + (err && err.message ? err.message : err);
+          this.wsMsg = '반영 실패: ' + (err && err.message ? err.message : err);
           this.requestUpdate();
         })[spec.server](JSON.stringify(this.wsPreview));
       }
@@ -3320,10 +3584,10 @@
             </p>
             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px;">
               <div class="file-input-wrapper">
-                <label class="file-input-label" for="wsFile_${kind}">📁 파일 선택</label>
+                <label class="file-input-label" for="wsFile_${kind}">파일 선택</label>
                 <input type="file" id="wsFile_${kind}" accept=".csv,.xlsx,.xls" @change="${(e) => this._wsHandleFile(kind, e)}">
               </div>
-              ${active && this.wsFileName ? html`<span style="color:#475569; font-size:13px;">📄 ${this.wsFileName}</span>` : ''}
+              ${active && this.wsFileName ? html`<span style="color:#475569; font-size:13px;">${this.wsFileName}</span>` : ''}
               <button class="btn btn-primary" @click="${() => this._wsImport()}" ?disabled="${!active || !this.wsPreview || !this.wsPreview.length}" style="padding:12px 24px;">${spec.label}에 반영</button>
             </div>
             ${active && this.wsMsg ? html`<div style="margin-top:14px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.wsMsg}</div>` : ''}
@@ -3349,25 +3613,118 @@
 
       _attFilterCard(loadFn, empProp) {
         return html`
-          <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+          <div class="toolbar" style="align-items:flex-end;">
             <div>
-              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
-              <select @change="${(e) => this[empProp] = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:180px; box-sizing:border-box;">
+              <label class="fld-label">직원</label>
+              <select @change="${(e) => this[empProp] = e.target.value}" style="width:180px;">
                 <option value="전체" ?selected="${(this[empProp] || '전체') === '전체'}">전체 직원</option>
                 ${(this.allEmployees || []).map(emp => html`<option value="${emp.name}" ?selected="${this[empProp] === emp.name}">${emp.name}</option>`)}
               </select>
             </div>
             <div>
-              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">시작일</label>
-              <input type="date" .value="${this.attFrom || ''}" @change="${(e) => this.attFrom = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+              <label class="fld-label">시작일</label>
+              <input type="date" .value="${this.attFrom || ''}" @change="${(e) => this.attFrom = e.target.value}" >
             </div>
             <div>
-              <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">종료일</label>
-              <input type="date" .value="${this.attTo || ''}" @change="${(e) => this.attTo = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+              <label class="fld-label">종료일</label>
+              <input type="date" .value="${this.attTo || ''}" @change="${(e) => this.attTo = e.target.value}" >
             </div>
-            <button class="btn btn-primary" @click="${() => loadFn()}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
+            <button class="btn btn-primary" @click="${() => loadFn()}" >조회</button>
           </div>
         `;
+      }
+
+      // ── 사이드바 ────────────────────────────────────────────────
+      _icon(n) {
+        const P = {
+          home:     svg`<path d="M3.2 10.4 12 3.4l8.8 7"/><path d="M5.4 9.2V19a1.6 1.6 0 0 0 1.6 1.6h10a1.6 1.6 0 0 0 1.6-1.6V9.2"/><path d="M9.8 20.6v-5.4h4.4v5.4"/>`,
+          users:    svg`<path d="M15.5 20.5v-1.8a3.5 3.5 0 0 0-3.5-3.5H6.5A3.5 3.5 0 0 0 3 18.7v1.8"/><circle cx="9.2" cy="7.8" r="3.6"/><path d="M21 20.5v-1.8a3.5 3.5 0 0 0-2.6-3.4"/><path d="M15.8 4.3a3.6 3.6 0 0 1 0 7"/>`,
+          idcard:   svg`<rect x="3" y="4.6" width="18" height="14.8" rx="2.6"/><circle cx="9" cy="11" r="2.2"/><path d="M5.7 16.6a3.6 3.6 0 0 1 6.6 0"/><path d="M15.4 9.8h3.4M15.4 13.2h3.4"/>`,
+          book:     svg`<path d="M4.4 18.4a2.4 2.4 0 0 1 2.4-2.4H19.6"/><path d="M6.8 3.6H19.6v16.8H6.8a2.4 2.4 0 0 1-2.4-2.4V6a2.4 2.4 0 0 1 2.4-2.4z"/>`,
+          clock:    svg`<circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 1.9"/>`,
+          calendar: svg`<rect x="3.4" y="5" width="17.2" height="15.6" rx="2.4"/><path d="M3.4 9.8h17.2M8.4 3.4v3.2M15.6 3.4v3.2"/>`,
+          pin:      svg`<path d="M12 21s6.8-5.9 6.8-11a6.8 6.8 0 1 0-13.6 0C5.2 15.1 12 21 12 21z"/><circle cx="12" cy="10" r="2.6"/>`,
+          sun:      svg`<circle cx="12" cy="12" r="4"/><path d="M12 2.7v2.2M12 19.1v2.2M4.4 4.4l1.6 1.6M18 18l1.6 1.6M2.7 12h2.2M19.1 12h2.2M4.4 19.6l1.6-1.6M18 6l1.6-1.6"/>`,
+          chart:    svg`<path d="M3.8 20.3h16.4"/><rect x="5.3" y="12" width="3.4" height="6" rx="1.1"/><rect x="10.5" y="7.3" width="3.4" height="10.7" rx="1.1"/><rect x="15.7" y="9.8" width="3.4" height="8.2" rx="1.1"/>`,
+          sliders:  svg`<path d="M4 7.4h9M17.6 7.4h2.6M4 16.6h4.4M13 16.6h7.2"/><circle cx="15.2" cy="7.4" r="2.3"/><circle cx="10.7" cy="16.6" r="2.3"/>`,
+          wallet:   svg`<path d="M3.6 8.2A2.6 2.6 0 0 1 6.2 5.6h11.6a2.6 2.6 0 0 1 2.6 2.6v8.4a2.6 2.6 0 0 1-2.6 2.6H6.2a2.6 2.6 0 0 1-2.6-2.6z"/><path d="M16.5 12.4h1.1"/>`,
+          table:    svg`<rect x="3.4" y="4.8" width="17.2" height="14.4" rx="2.2"/><path d="M3.4 9.6h17.2M9.4 9.6v9.6"/>`,
+          layers:   svg`<path d="M12 3.4 3.6 7.6 12 11.8l8.4-4.2z"/><path d="M3.6 12.4 12 16.6l8.4-4.2"/><path d="M3.6 16.8 12 21l8.4-4.2"/>`,
+          cash:     svg`<rect x="2.8" y="6" width="18.4" height="12" rx="2.4"/><circle cx="12" cy="12" r="2.8"/><path d="M6.4 12h.02M17.6 12h.02"/>`,
+          receipt:  svg`<path d="M5.6 3.4h12.8v17.2l-2.6-1.6-2.6 1.6-2.6-1.6-2.6 1.6-2.4-1.6z"/><path d="M9 8.6h6M9 12.4h6"/>`,
+          pie:      svg`<path d="M12 3.6a8.4 8.4 0 1 0 8.4 8.4H12z"/><path d="M14.8 3.9A8.4 8.4 0 0 1 20.1 9.2h-5.3z"/>`,
+          calc:     svg`<rect x="4.6" y="3.2" width="14.8" height="17.6" rx="2.4"/><path d="M8 7.4h8"/><path d="M8.6 12h.02M12 12h.02M15.4 12h.02M8.6 16h.02M12 16h.02M15.4 16h.02"/>`
+        };
+        return html`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${P[n] || P.table}</svg>`;
+      }
+
+      _navDef() {
+        return [
+          { t: 'item', tab: 'master', label: '대시보드', icon: 'home' },
+          { t: 'group', label: '인사관리', icon: 'users', prop: 'expandHr', items: [
+            { tab: 'hr-personnel', label: '인사정보', icon: 'idcard' },
+            { tab: 'hr-career', label: '경력정보', icon: 'book' }
+          ]},
+          { t: 'group', label: '근태관리', icon: 'clock', prop: 'expandAttendance', items: [
+            { tab: 'attendance-record', label: '근태현황', icon: 'calendar', run: () => { this.wsKind = ''; this._loadAttendance(); } },
+            { tab: 'ot-status', label: '시간외근무현황', icon: 'clock', run: () => { this.wsKind = ''; this._loadOvertime(); } }
+          ]},
+          { t: 'group', label: '휴가관리', icon: 'sun', prop: 'expandLeave', items: [
+            { tab: 'leave-grant', label: '휴가부여', icon: 'calendar', run: () => { if (!this.lgItems) this._loadLeaveGrantItems(); if (!this.lgYear) this.lgYear = new Date().getFullYear(); } },
+            { tab: 'leave-status', label: '휴가현황', icon: 'chart', run: () => { this.wsKind = ''; if (!this.lgYear) this.lgYear = new Date().getFullYear(); this._loadAllBalance(); } }
+          ]},
+          { t: 'group', label: '급여관리', icon: 'wallet', prop: 'expandSalary', items: [
+            { tab: 'hr-hobong-status', label: '전직원호봉현황', icon: 'chart', run: () => this._loadHobongStatus() },
+            { tab: 'salary-settings', label: '기본급·제수당 설정', icon: 'sliders', run: () => this._loadSettingsByYear() },
+            { tab: 'salary-personal', label: '급여설정', icon: 'cash' },
+            { tab: 'salary-table', label: '연봉표', icon: 'table' },
+            { tab: 'salary-all', label: '전체 연봉표', icon: 'layers', run: () => this._loadAllSalary() },
+            { tab: 'payroll', label: '월급계산', icon: 'calc' },
+            { tab: 'ledger', label: '급여대장', icon: 'receipt' },
+            { tab: 'stats', label: '월급 통계', icon: 'pie' }
+          ]},
+          { t: 'item', tab: 'budget', label: '차기연도 인건비', icon: 'calendar' },
+          { t: 'group', label: '설정', icon: 'sliders', prop: 'expandConfig', items: [
+            { tab: 'policy-tables', label: '정책·기준표', icon: 'book', run: () => this._loadPolicyInfo() },
+            { tab: 'basic-salary', label: '기본급표', icon: 'table', run: () => this._loadBasicSalary() },
+            { tab: 'tax-rates', label: '세금·퇴직금 요율', icon: 'calc', run: () => this._loadTaxRates() },
+            { tab: 'income-tax', label: '간이세액표', icon: 'receipt', run: () => this._loadIncomeTax() },
+            { tab: 'holidays', label: '공휴일', icon: 'calendar', run: () => this._loadHolidays() }
+          ]}
+        ];
+      }
+
+      _go(it) {
+        this.activeTab = it.tab;
+        // 이동한 화면이 속한 그룹은 사이드바에서 펼쳐 둔다
+        const g = this._navDef().find(n => n.t === 'group' && n.items.some(i => i.tab === it.tab));
+        if (g) this[g.prop] = true;
+        if (it.run) it.run();
+        else if (g) { const src = g.items.find(i => i.tab === it.tab); if (src && src.run) src.run(); }
+      }
+
+      _navLeaf(it) {
+        return html`<div class="nav-item ${this.activeTab === it.tab ? 'active' : ''}" @click="${() => this._go(it)}">
+          ${this._icon(it.icon)}<span>${it.label}</span>
+        </div>`;
+      }
+
+      _renderNav() {
+        const chev = html`<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+        return this._navDef().map(n => {
+          if (n.t === 'item') return this._navLeaf(n);
+          const open = !!this[n.prop];
+          const hasActive = n.items.some(i => i.tab === this.activeTab);
+          return html`
+            <div class="nav-group ${open ? 'open' : ''} ${hasActive ? 'has-active' : ''}">
+              <div class="nav-group-head" @click="${() => { this[n.prop] = !this[n.prop]; }}">
+                ${this._icon(n.icon)}<span>${n.label}</span>
+                ${hasActive && !open ? html`<span class="nav-dot"></span>` : ''}
+                ${chev}
+              </div>
+              ${open ? html`<div class="nav-group-body">${n.items.map(i => this._navLeaf(i))}</div>` : ''}
+            </div>`;
+        });
       }
 
       render() {
@@ -3376,147 +3733,108 @@
         const myCareers = this.careers[this.selectedEmpId] || [];
 
         return html`
-          ${this.isLoading ? html`<div class="loading"><h2>⚙️ ${this.loadingMsg}</h2></div>` : ''}
+          ${this.isLoading ? html`<div class="loading"><h2>${this.loadingMsg}</h2></div>` : ''}
 
           <nav class="sidebar">
-            <h3 style="margin-bottom: 24px; color: white;">${this.appConfig.appTitle || '통합관리시스템'}</h3>
-
-            <!-- 1. 인사관리 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandHr = !this.expandHr; }}">
-              <span>인사관리</span>
-              <span style="font-size: 12px;">${this.expandHr ? '▼' : '▶'}</span>
-            </div>
-            ${this.expandHr ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'hr-personnel' ? 'active' : ''}" @click="${() => this.activeTab = 'hr-personnel'}">👥 인사정보</div>
-                <div class="nav-item ${this.activeTab === 'hr-career' ? 'active' : ''}" @click="${() => this.activeTab = 'hr-career'}">📚 경력정보</div>
+            <div class="brand">
+              <div class="brand-mark">${(this.appConfig.orgName || '기관').trim().slice(0, 2) || '기관'}</div>
+              <div>
+                <div class="brand-name">${this.appConfig.appTitle || '통합관리시스템'}</div>
+                <div class="brand-sub">${this.appConfig.orgName || '기관명 미설정'}</div>
               </div>
-            ` : ''}
-
-            <!-- 2. 근태관리 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandAttendance = !this.expandAttendance; }}">
-              <span>근태관리</span>
-              <span style="font-size: 12px;">${this.expandAttendance ? '▼' : '▶'}</span>
             </div>
-            ${this.expandAttendance ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'attendance-record' ? 'active' : ''}" @click="${() => { this.activeTab = 'attendance-record'; this.wsKind = ''; this._loadAttRecords(); }}">🕘 근태현황</div>
-                <div class="nav-item ${this.activeTab === 'ot-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'ot-status'; this.wsKind = ''; this._loadOvertime(); }}">⏰ 시간외근무현황</div>
-              </div>
-            ` : ''}
-
-            <!-- 3. 휴가관리 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandLeave = !this.expandLeave; }}">
-              <span>휴가관리</span>
-              <span style="font-size: 12px;">${this.expandLeave ? '▼' : '▶'}</span>
-            </div>
-            ${this.expandLeave ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'leave-grant' ? 'active' : ''}" @click="${() => { this.activeTab = 'leave-grant'; if (!this.lgItems) this._loadLeaveGrantItems(); if (!this.lgYear) this.lgYear = new Date().getFullYear(); }}">🌴 휴가부여</div>
-                <div class="nav-item ${this.activeTab === 'leave-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'leave-status'; this.wsKind = ''; if (!this.lgYear) this.lgYear = new Date().getFullYear(); this._loadAllBalance(); this._loadLeaveUsage(); }}">📊 휴가현황</div>
-              </div>
-            ` : ''}
-
-            <!-- 4. 급여관리 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandSalary = !this.expandSalary; }}">
-              <span>급여관리</span>
-              <span style="font-size: 12px;">${this.expandSalary ? '▼' : '▶'}</span>
-            </div>
-            ${this.expandSalary ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'hr-hobong-status' ? 'active' : ''}" @click="${() => { this.activeTab = 'hr-hobong-status'; this._loadHobongStatus(); }}">📊 전직원호봉현황</div>
-                <div class="nav-item ${this.activeTab === 'salary-settings' ? 'active' : ''}" @click="${() => { this.activeTab = 'salary-settings'; this._loadSettingsByYear(); }}">⚙️ 기본급·제수당 설정</div>
-                <div class="nav-item ${this.activeTab === 'salary-personal' ? 'active' : ''}" @click="${() => this.activeTab = 'salary-personal'}">💰 급여설정</div>
-                <div class="nav-item ${this.activeTab === 'salary-table' ? 'active' : ''}" @click="${() => this.activeTab = 'salary-table'}">📋 연봉표</div>
-                <div class="nav-item ${this.activeTab === 'salary-all' ? 'active' : ''}" @click="${() => { this.activeTab = 'salary-all'; this._loadAllSalary(); }}">🗂️ 전체 연봉표</div>
-                <div class="nav-item ${this.activeTab === 'payroll' ? 'active' : ''}" @click="${() => this.activeTab = 'payroll'}">💵 월급계산</div>
-                <div class="nav-item ${this.activeTab === 'ledger' ? 'active' : ''}" @click="${() => this.activeTab = 'ledger'}">🧾 급여대장</div>
-                <div class="nav-item ${this.activeTab === 'stats' ? 'active' : ''}" @click="${() => this.activeTab = 'stats'}">📊 월급 통계</div>
-              </div>
-            ` : ''}
-
-            <!-- 5. 예산·결산 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandBudget = !this.expandBudget; }}">
-              <span>예산·결산</span>
-              <span style="font-size: 12px;">${this.expandBudget ? '▼' : '▶'}</span>
-            </div>
-            ${this.expandBudget ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'budget' ? 'active' : ''}" @click="${() => this.activeTab = 'budget'}">📅 차기연도 인건비 계산</div>
-              </div>
-            ` : ''}
-
-            <!-- 6. 설정 -->
-            <div style="padding: 12px 16px; cursor: pointer; border-radius: 6px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.08); margin-bottom: 4px;" @click="${() => { this.expandConfig = !this.expandConfig; }}">
-              <span>설정</span>
-              <span style="font-size: 12px;">${this.expandConfig ? '▼' : '▶'}</span>
-            </div>
-            ${this.expandConfig ? html`
-              <div style="margin-bottom: 12px;">
-                <div class="nav-item ${this.activeTab === 'policy-tables' ? 'active' : ''}" @click="${() => { this.activeTab = 'policy-tables'; this._loadPolicyInfo(); }}">📋 정책·기준표</div>
-                <div class="nav-item ${this.activeTab === 'basic-salary' ? 'active' : ''}" @click="${() => { this.activeTab = 'basic-salary'; this._loadBasicSalary(); }}">💵 기본급표</div>
-                <div class="nav-item ${this.activeTab === 'tax-rates' ? 'active' : ''}" @click="${() => { this.activeTab = 'tax-rates'; this._loadTaxRates(); }}">🧮 세금·퇴직금 요율</div>
-                <div class="nav-item ${this.activeTab === 'income-tax' ? 'active' : ''}" @click="${() => { this.activeTab = 'income-tax'; this._loadIncomeTax(); }}">🧾 간이세액표</div>
-                <div class="nav-item ${this.activeTab === 'holidays' ? 'active' : ''}" @click="${() => { this.activeTab = 'holidays'; this._loadHolidays(); }}">📅 공휴일</div>
-              </div>
-            ` : ''}
+            <div class="nav-cap">MENU</div>
+            <div class="nav-list">${this._renderNav()}</div>
+            <div class="side-foot">인사·급여·근태·휴가·예산<br><span style="opacity:.72">통합관리시스템</span></div>
           </nav>
 
           <main class="main-content">
             ${this.appConfig && this.appConfig.configured === false ? html`
-              <div class="card" style="border:2px solid #f59e0b; background:#fffbeb; margin-bottom:20px;">
-                <h3 style="margin-top:0; color:#b45309;">⚙️ 기관 설정을 완료하세요</h3>
-                <p style="color:#78350f; font-size:14px; margin:8px 0 16px;">
-                  이 사본을 처음 설정하는 중입니다. 기관명을 입력하고 저장하세요. (메일 제목·서명, 재직증명서 근무처명에 쓰입니다)
-                </p>
-                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                  <input type="text" .value="${this.ocOrgName || ''}" @input="${(e) => this.ocOrgName = e.target.value}" placeholder="기관명 (예: ○○종합사회복지관)" style="padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:280px;">
-                  <input type="text" .value="${this.ocAppTitle || ''}" @input="${(e) => this.ocAppTitle = e.target.value}" placeholder="화면 제목 (선택, 비우면 '기관명 통합관리')" style="padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:280px;">
-                  <button class="btn btn-primary" @click="${() => this._saveOrgConfig()}" style="padding:10px 24px;">저장</button>
+              <div class="setup-card">
+                <div class="setup-step">첫 설정 1/2</div>
+                <h3>기관 설정을 완료하세요</h3>
+                <p>기관명은 메일 제목·서명과 재직증명서의 근무처명에 쓰입니다. 화면 제목은 비워 두면 "기관명 통합관리시스템"이 됩니다.</p>
+                <div class="setup-row">
+                  <input type="text" .value="${this.ocOrgName || ''}" @input="${(e) => this.ocOrgName = e.target.value}" placeholder="기관명 (예: ○○종합사회복지관)" style="min-width:260px;">
+                  <input type="text" .value="${this.ocAppTitle || ''}" @input="${(e) => this.ocAppTitle = e.target.value}" placeholder="화면 제목 (선택)" style="min-width:220px;">
+                  <button class="btn btn-primary" @click="${() => this._saveOrgConfig()}">저장</button>
                 </div>
-                <p style="color:#92400e; font-size:12px; margin:14px 0 0;">
-                  ※ 이후 편집기에서 <code>setupAllSheets</code> 를 한 번 실행해 시트를 만들고, 정책·기준표(기본급·요율·간이세액표·공휴일)를 입력하세요.
-                </p>
+                <p class="setup-next">다음 단계 — 편집기에서 <code>setupAllSheets</code> 를 한 번 실행해 시트를 만든 뒤, <strong>설정 → 정책·기준표</strong>에서 기본급표·요율·간이세액표·공휴일을 입력하세요.</p>
               </div>
             ` : ''}
             ${this.activeTab === 'master' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a;">${this.appConfig.appTitle || '통합관리시스템'}</h2>
-                <p style="color:#64748b;">왼쪽 메뉴에서 작업을 선택하세요.</p>
+                <div class="page-head">
+                  <h2>${this.appConfig.appTitle || '통합관리시스템'}</h2>
+                  <p class="sub">${this.appConfig.orgName ? this.appConfig.orgName + ' · ' : ''}인사·급여·근태·휴가·예산 통합 관리. 아래에서 바로 시작하거나 왼쪽 메뉴에서 선택하세요.</p>
+                </div>
+                <div class="home-grid">
+                  ${[
+                    { tab:'hr-personnel', icon:'idcard', t:'인사정보',  d:'직원 등록·수정, 자격증·입퇴사 관리' },
+                    { tab:'hr-career',    icon:'book',   t:'호봉 산정',  d:'경력 인정일수로 급수·호봉 확정' },
+                    { tab:'attendance-record', icon:'calendar', t:'근태현황', d:'근태 파일 반영 및 기록 조회' },
+                    { tab:'payroll',      icon:'calc',   t:'월급계산',  d:'지급·공제 계산과 재원 배분' },
+                    { tab:'ledger',       icon:'receipt',t:'급여대장',  d:'확정 급여 조회·인쇄·명세서 발송' },
+                    { tab:'policy-tables',icon:'sliders',t:'정책·기준표', d:'기본급표·요율·간이세액표·공휴일' }
+                  ].map(c => html`
+                    <div class="home-card" @click="${() => this._go(c)}">
+                      <span class="hc-ic">${this._icon(c.icon)}</span>
+                      <div class="hc-t">${c.t}</div>
+                      <div class="hc-d">${c.d}</div>
+                    </div>`)}
+                </div>
               </div>
             ` : ''}
 
             ${this.activeTab === 'hr-hobong-status' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">📊 전직원호봉현황</h2>
-                <table style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0;">
-                  <thead>
-                    <tr style="background:#0f172a; color:white;">
-                      <th style="padding:14px 12px; text-align:left;">이름</th>
-                      <th style="padding:14px 12px; text-align:left;">직급</th>
-                      <th style="padding:14px 12px; text-align:center;">급수</th>
-                      <th style="padding:14px 12px; text-align:center;">호봉</th>
-                      <th style="padding:14px 12px; text-align:center;">다음 승급 예정월</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${this.hobongStatus && this.hobongStatus.length > 0 ? this.hobongStatus.map((r, i) => html`
-                      <tr style="border-bottom:1px solid #e2e8f0; background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-                        <td style="padding:12px; color:#0f172a; font-weight:500;">${r.name}</td>
-                        <td style="padding:12px; color:#334155;">${r.position || '-'}</td>
-                        <td style="padding:12px; text-align:center; color:#334155;">${r.grade || '-'}</td>
-                        <td style="padding:12px; text-align:center; color:#334155;">${r.hobon || '-'}</td>
-                        <td style="padding:12px; text-align:center; color:#334155;">${r.nextMonth || '-'}</td>
-                      </tr>
-                    `) : html`<tr><td colspan="5" style="padding:32px; text-align:center; color:#94a3b8;">${this.hobongStatusMsg || '등록된 직원이 없습니다'}</td></tr>`}
-                  </tbody>
-                </table>
+                <div class="page-head"><h2>전직원호봉현황</h2><p class="sub">경력 인정일수를 기준으로 산정한 전 직원의 급수·호봉 현황입니다.</p></div>
+                ${(() => {
+                  const all = this.hobongStatus || [];
+                  const q = (this.hobongQuery || '').trim();
+                  const list = q ? all.filter(r => (r.name || '').includes(q) || (r.position || '').includes(q)) : all;
+                  const promo = all.filter(r => r.nextMonth && r.nextMonth !== '-').length;
+                  return html`
+                    <div class="toolbar" style="max-width:840px;">
+                      <input type="text" placeholder="이름·직급 검색" .value="${this.hobongQuery || ''}"
+                        @input="${(e) => { this.hobongQuery = e.target.value; }}" style="width:200px;">
+                      <button class="btn btn-outline btn-sm" @click="${() => this._loadHobongStatus()}">새로고침</button>
+                      <span class="hint">전체 ${all.length}명${q ? ` · 검색 ${list.length}명` : ''} · 승급 예정 ${promo}명</span>
+                    </div>
+                    <div class="card" style="padding:0; overflow:hidden; max-width:840px;">
+                    <table style="margin-top:0;">
+                      <colgroup><col style="width:26%"><col style="width:22%"><col style="width:24%"><col style="width:28%"></colgroup>
+                      <thead>
+                        <tr>
+                          <th>이름</th>
+                          <th>직급</th>
+                          <th>급수 · 호봉</th>
+                          <th>다음 승급 예정월</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${list.length > 0 ? list.map(r => html`
+                          <tr>
+                            <td style="font-weight:600;">${r.name}</td>
+                            <td style="color:#61736c;">${r.position || '-'}</td>
+                            <td style="white-space:nowrap;">${(r.grade || r.hobon)
+                                ? html`<span class="badge-grade">${r.grade || '-'}</span><span style="font-variant-numeric:tabular-nums;">${r.hobon ? r.hobon + '호봉' : '-'}</span>`
+                                : html`<span style="color:#b0bdb8;">-</span>`}</td>
+                            <td style="white-space:nowrap;">${r.nextMonth && r.nextMonth !== '-'
+                                ? html`<span class="badge badge-ratio">${r.nextMonth}</span>`
+                                : html`<span style="color:#b0bdb8;">예정 없음</span>`}</td>
+                          </tr>
+                        `) : html`<tr><td colspan="4" class="empty">${this.hobongStatusMsg || (q ? '검색 결과가 없습니다' : '등록된 직원이 없습니다')}</td></tr>`}
+                      </tbody>
+                    </table>
+                    </div>`;
+                })()}
               </div>
             ` : ''}
 
             ${this.activeTab === 'salary-personal' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">💰 기본급·제수당 설정(개인)</h2>
+                <div class="page-head"><h2>기본급·제수당 설정(개인)</h2><p class="sub">직원별 기본급 재원 배분과 개인 제수당·단축근로를 설정합니다.</p></div>
                 <div style="margin-bottom: 24px;">
                   <label style="display:block; margin-bottom:8px; font-weight:600; color:#334155;">연도</label>
                   <select @change="${(e) => { this.personalYear = parseInt(e.target.value); this._loadPersonalSalary(); }}" style="width:150px; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
@@ -3534,7 +3852,7 @@
                     </select>
                     <button @click="${() => this._loadPersonalSalary()}" style="padding:10px 24px; background:#0f766e; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer;">불러오기</button>
                   </div>
-                  ${this.loadedEmpName ? html`<div style="margin-top:12px; padding:10px 16px; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; color:#065f46; font-weight:600;">📋 현재 편집 중: ${this.loadedEmpName}</div>` : ''}
+                  ${this.loadedEmpName ? html`<div style="margin-top:12px; padding:10px 16px; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; color:#065f46; font-weight:600;">현재 편집 중: ${this.loadedEmpName}</div>` : ''}
                 </div>
                 ${this.personalLoading ? html`
                   <div style="margin-bottom:32px; padding:60px; text-align:center; color:#64748b; background:#f8fafc; border-radius:8px;">불러오는 중입니다...</div>
@@ -3617,11 +3935,11 @@
 
             ${this.activeTab === 'hr-personnel' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">👥 개인정보등록</h2>
+                <div class="page-head"><h2>개인정보등록</h2><p class="sub">직원의 인적사항·조직정보·자격증·입퇴사 정보를 관리합니다.</p></div>
                 
                 <div class="tab-buttons">
-                  <button class="tab-btn ${this.employmentMode === 'detail' ? 'active' : ''}" @click="${() => { this.employmentMode = 'detail'; this.formData = { id: '', name: '', birthDate: '', phone: '', emergency: '', address: '', zipCode: '', email: '', teamName: '', position: '', authority: '일반', grade: '4급', dics: '', mbti: '', signature: '', certificate: '', certGrade: '', certDate: '', license: '', canDrive: '', joinDate: '', leaveDate: '' }; }}">👤 직원상세정보</button>
-                  <button class="tab-btn ${this.employmentMode === 'new' ? 'active' : ''}" @click="${this._startNewEmployee}">➕ 신입직원등록</button>
+                  <button class="tab-btn ${this.employmentMode === 'detail' ? 'active' : ''}" @click="${() => { this.employmentMode = 'detail'; this.formData = { id: '', name: '', birthDate: '', phone: '', emergency: '', address: '', zipCode: '', email: '', teamName: '', position: '', authority: '일반', grade: '4급', dics: '', mbti: '', signature: '', certificate: '', certGrade: '', certDate: '', license: '', canDrive: '', joinDate: '', leaveDate: '' }; }}">직원상세정보</button>
+                  <button class="tab-btn ${this.employmentMode === 'new' ? 'active' : ''}" @click="${this._startNewEmployee}">신입직원등록</button>
                 </div>
 
                 <div class="card">
@@ -3635,7 +3953,7 @@
                     </div>
                   ` : ''}
 
-                  <h3 style="margin-top: 0; color: #334155; margin-bottom: 24px;">${this.employmentMode === 'detail' ? '📋 직원 상세정보' : '📋 신입 직원 정보 입력'}</h3>
+                  <h3 style="margin-top: 0; color: #334155; margin-bottom: 24px;">${this.employmentMode === 'detail' ? '직원 상세정보' : '신입 직원 정보 입력'}</h3>
                   ${this._renderEmploymentForm()}
                 </div>
               </div>
@@ -3643,7 +3961,7 @@
 
             ${this.activeTab === 'salary-settings' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">⚙️ 기본급, 제수당 설정</h2>
+                <div class="page-head"><h2>기본급, 제수당 설정</h2><p class="sub">연도별 임금테이블과 전 직원 공통 수당·보험요율을 설정합니다.</p></div>
                 
                 <!-- 연도 선택 -->
                 <div class="card" style="margin-bottom: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
@@ -3658,14 +3976,14 @@
 
                 <!-- 기본급 -->
                 <div class="card" style="margin-bottom: 24px;">
-                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">💵 기본급</h3>
+                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">기본급</h3>
                   <div style="padding: 16px; background: #f8fafc; border-radius: 8px; font-size: 16px; font-weight: 600; color: #334155;">${this.settingsYear} 기본급 테이블</div>
                   <div style="margin-top: 8px; font-size: 13px; color: #94a3b8;">기본급은 '기본급' 시트에서 자동으로 불러옵니다.</div>
                 </div>
 
                 <!-- 기본 제수당 -->
                 <div class="card" style="margin-bottom: 24px;">
-                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">💰 기본 제수당</h3>
+                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">기본 제수당</h3>
                   <div style="overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse;">
                       <thead>
@@ -3687,7 +4005,7 @@
 
                 <!-- 시간외 수당 -->
                 <div class="card" style="margin-bottom: 24px;">
-                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">⏰ 시간외 수당</h3>
+                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">시간외 수당</h3>
                   <div style="padding: 16px; background: #f8fafc; border-radius: 8px; display: flex; gap: 16px; align-items: flex-end;">
                     <div style="flex: 1;">
                       <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #475569;">월 시간 한도</label>
@@ -3720,7 +4038,7 @@
 
                 <!-- 가족수당 -->
                 <div class="card" style="margin-bottom: 24px;">
-                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">👨‍👩‍👧‍👦 가족수당</h3>
+                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">가족수당</h3>
                   <div style="overflow-x: auto; margin-bottom: 16px;">
                     <table style="width: 100%; border-collapse: collapse;">
                       <thead>
@@ -3757,7 +4075,7 @@
 
                 <!-- 기타 수당 -->
                 <div class="card">
-                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">➕ 기타 수당</h3>
+                  <h3 style="margin-top: 0; color: #0f172a; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">기타 수당</h3>
                   <div style="overflow-x: auto; margin-bottom: 16px;">
                     <table style="width: 100%; border-collapse: collapse;">
                       <thead>
@@ -3793,13 +4111,13 @@
 
                 <!-- 저장 버튼 -->
                 <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px;">
-                  <button @click="${() => this._saveSettings()}" style="padding: 12px 28px; background: #0f766e; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 15px;">💾 저장</button>
+                  <button @click="${() => this._saveSettings()}" style="padding: 12px 28px; background: #0f766e; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 15px;">저장</button>
                 </div>
               </div>
             ` : ''}
             ${this.activeTab === 'salary-table' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">📋 연봉표</h2>
+                <div class="page-head"><h2>연봉표</h2><p class="sub">직원 한 명의 연간 급여를 항목별·재원별로 확인합니다.</p></div>
                 
                 <div class="card" style="margin-bottom: 24px;">
                   <div style="display: flex; align-items: center; gap: 16px;">
@@ -3832,42 +4150,36 @@
                         <span style="font-size: 14px; color: #64748b; margin-left: 16px;">(${(Array.isArray(this.salaryGradeByMonth) && this.salaryGradeByMonth.length === 12) ? this._hobonLabelByMonth(this.salaryGradeByMonth, this.salaryHobonByMonth) : ((this.salaryGrade || '-') + ' / ' + this._hobonLabel(this.salaryPreHobon != null ? this.salaryPreHobon : this.salaryHobon, this.salaryPromoMonth))})</span>
                       </h3>
                       
-                      <div style="overflow-x: auto;">
-                        <table style="width: 100%; min-width: 1200px; font-size: 12px; border-collapse: collapse;">
-                          <thead>
-                            <tr>
-                              <th style="width: 80px; padding: 6px 8px; text-align: left; background: #4472c4; color: white; font-weight: bold;">항목</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">1월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">2월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">3월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">4월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">5월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">6월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">7월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">8월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">9월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">10월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">11월</th>
-                              <th style="width: 80px; padding: 6px 8px; text-align: right; background: #4472c4; color: white; font-weight: bold;">12월</th>
-                              <th style="width: 90px; padding: 6px 8px; text-align: right; background: #2f5496; color: white; font-weight: bold;">합계</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${rows.map(r => html`
-                              <tr style="border-bottom: 1px solid #e0e0e0;">
-                                <td style="padding: 6px 8px; font-weight: 600; background: #f5f5f5;">${r.name}</td>
-                                ${r.vals.map(v => html`<td style="padding: 6px 8px; text-align: right; border-right: 1px solid #e0e0e0;">${v > 0 ? v.toLocaleString() : '-'}</td>`)}
-                                <td style="padding: 6px 8px; text-align: right; background: #f0f0f0; font-weight: bold;">${r.total.toLocaleString()}</td>
-                              </tr>
-                            `)}
-                            <tr style="background: #e8f5e9; border-bottom: 2px solid #2e7d32;">
-                              <td style="padding: 6px 8px; font-weight: 700; background: #c8e6c9;">합계</td>
-                              ${monthlyTotals.map(t => html`<td style="padding: 6px 8px; text-align: right; border-right: 1px solid #81c784; font-weight: bold;">${t.toLocaleString()}</td>`)}
-                              <td style="padding: 6px 8px; text-align: right; background: #2e7d32; color: white; font-weight: bold;">${grandTotal.toLocaleString()}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <div class="sal-scroll">
+              <table class="sal-table">
+                <colgroup>
+                  <col style="width:168px">
+                  ${monthHdr.map(() => html`<col style="width:86px">`)}
+                  <col style="width:112px">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="sal-lbl">항목</th>
+                    ${monthHdr.map(m => html`<th>${m}</th>`)}
+                    <th class="sal-sum">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows.map(r => html`
+                    <tr>
+                      <td class="sal-lbl" title="${r.name}">${r.name}</td>
+                      ${r.vals.map(v => html`<td>${v > 0 ? v.toLocaleString() : '·'}</td>`)}
+                      <td class="sal-sum">${r.total.toLocaleString()}</td>
+                    </tr>
+                  `)}
+                  <tr class="sal-total">
+                    <td class="sal-lbl">합계</td>
+                    ${monthlyTotals.map(t => html`<td>${t.toLocaleString()}</td>`)}
+                    <td class="sal-sum">${grandTotal.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
                     </div>
                   `;
                 })() : html`<div class="card"><p style="text-align: center; color: #64748b; padding: 40px;">직원을 선택하면 연봉표가 표시됩니다</p></div>`}
@@ -3877,15 +4189,15 @@
             ${this.activeTab === 'salary-all' ? html`
               <div>
                 <div class="no-print" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 24px;">
-                  <h2 style="margin:0; color:#0f172a;">🗂️ 전체 연봉표</h2>
+                  <h2 style="margin:0; color:#0f172a;">전체 연봉표</h2>
                   <select @change="${(e) => { this.allSalaryYear = parseInt(e.target.value); this._loadAllSalary(); }}" style="width: 140px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; font-weight: 600;">
                     <option value="2025" ?selected="${this.allSalaryYear === 2025}">2025</option>
                     <option value="2026" ?selected="${this.allSalaryYear === 2026}">2026</option>
                     <option value="2027" ?selected="${this.allSalaryYear === 2027}">2027</option>
                   </select>
-                  <button @click="${() => window.print()}" style="padding: 10px 20px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">🖨️ PDF로 인쇄</button>
-                  <button @click="${() => this._sendSalaryEmails(false)}" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">📧 선택 직원 발송</button>
-                  <button @click="${() => this._sendSalaryEmails(true)}" style="padding: 10px 20px; background: #1e40af; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">📧 전 직원 발송</button>
+                  <button @click="${() => window.print()}" style="padding: 10px 20px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">PDF로 인쇄</button>
+                  <button @click="${() => this._sendSalaryEmails(false)}" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">선택 직원 발송</button>
+                  <button @click="${() => this._sendSalaryEmails(true)}" style="padding: 10px 20px; background: #1e40af; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">전 직원 발송</button>
                   <span style="color:#64748b; font-size:13px;">재직 중인 직원 전원 (호봉관리 기준)</span>
                 </div>
                 ${this.allSalaryData && this.allSalaryData.employees && this.allSalaryData.employees.length > 0
@@ -3896,7 +4208,7 @@
 
             ${this.activeTab === 'payroll' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">💵 월급계산</h2>
+                <div class="page-head"><h2>월급계산</h2><p class="sub">전월 시간외 실적과 근태를 반영해 해당 월의 지급·공제를 계산합니다.</p></div>
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
                   <select @change="${(e) => this.payrollYear = parseInt(e.target.value)}" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600;">
                     ${[2025,2026,2027].map(y => html`<option value="${y}" ?selected="${this.payrollYear === y}">${y}년</option>`)}
@@ -4011,7 +4323,7 @@
             ${this.activeTab === 'ledger' ? html`
               <div>
                 <div class="no-print" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
-                  <h2 style="margin:0; color:#0f172a;">🧾 급여대장</h2>
+                  <h2 style="margin:0; color:#0f172a;">급여대장</h2>
                   <select @change="${(e) => this.ledgerYear = parseInt(e.target.value)}" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600;">
                     ${[2025,2026,2027].map(y => html`<option value="${y}" ?selected="${this.ledgerYear === y}">${y}년</option>`)}
                   </select>
@@ -4020,8 +4332,8 @@
                   </select>
                   <button @click="${() => this._loadLedger()}" style="padding:10px 20px; background:#0f766e; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">불러오기</button>
                   ${this.ledgerRows && this.ledgerRows.length ? html`
-                    <button @click="${() => window.print()}" style="padding:10px 20px; background:#1e40af; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">🖨️ 인쇄</button>
-                    <button @click="${() => this._sendPayslips()}" style="padding:10px 20px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">📧 전 직원 명세서 발송</button>` : ''}
+                    <button @click="${() => window.print()}" style="padding:10px 20px; background:#1e40af; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">인쇄</button>
+                    <button @click="${() => this._sendPayslips()}" style="padding:10px 20px; background:#0ea5e9; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">전 직원 명세서 발송</button>` : ''}
                 </div>
                 <div class="salary-print-page">
                   ${this.ledgerRows && this.ledgerRows.length ? html`<h3 style="margin:0 0 12px; color:#0f172a;">${this.ledgerYear}년 ${this.ledgerMonth}월 급여대장</h3>` : ''}
@@ -4032,7 +4344,7 @@
 
             ${this.activeTab === 'stats' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">📊 월급 통계 (재원별)</h2>
+                <div class="page-head"><h2>월급 통계 (재원별)</h2><p class="sub">보조금·자부담 등 재원별 인건비 집행 현황입니다.</p></div>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:24px;">
                   <select @change="${(e) => this.statsYear = parseInt(e.target.value)}" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600;">
                     ${[2025,2026,2027].map(y => html`<option value="${y}" ?selected="${this.statsYear === y}">${y}년</option>`)}
@@ -4089,14 +4401,14 @@
             ${this.activeTab === 'budget' ? html`
               <div>
                 <div class="no-print" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
-                  <h2 style="margin:0; color:#0f172a;">📅 인건비 예산 (차기년도)</h2>
+                  <h2 style="margin:0; color:#0f172a;">인건비 예산 (차기년도)</h2>
                   <select @change="${(e) => this.budgetYear = parseInt(e.target.value)}" style="padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600;">
                     ${[2025,2026,2027,2028].map(y => html`<option value="${y}" ?selected="${this.budgetYear === y}">${y}년</option>`)}
                   </select>
                   <button @click="${() => this._loadBudget()}" style="padding:10px 20px; background:#0f766e; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">불러오기/산정</button>
                   ${this.budgetRows && this.budgetRows.length ? html`
-                    <button @click="${() => this._saveBudget()}" style="padding:10px 20px; background:#1e40af; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">💾 예산 저장</button>
-                    <button @click="${() => window.print()}" style="padding:10px 20px; background:#475569; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">🖨️ 인쇄</button>` : ''}
+                    <button @click="${() => this._saveBudget()}" style="padding:10px 20px; background:#1e40af; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">예산 저장</button>
+                    <button @click="${() => window.print()}" style="padding:10px 20px; background:#475569; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">인쇄</button>` : ''}
                 </div>
                 <div class="salary-print-page">
                   ${this.budgetRows && this.budgetRows.length ? html`<h3 style="margin:0 0 12px; color:#0f172a;">${this.budgetYear}년 인건비 예산(안)</h3>` : ''}
@@ -4107,10 +4419,10 @@
 
             ${this.activeTab === 'hr-career' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom: 24px;">📚 호봉 산정</h2>
+                <div class="page-head"><h2>호봉 산정</h2><p class="sub">기관별 경력에 인정률을 적용해 인정일수와 호봉을 산정합니다.</p></div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0;">
-                  <h3 style="margin:0; color:#334155;">👇 호봉 확정/관리할 직원 선택</h3>
+                  <h3 style="margin:0; color:#334155;">호봉 확정/관리할 직원 선택</h3>
                   <select @change="${(e) => this.selectedEmpId = e.target.value}" style="padding: 10px 20px; border-radius: 8px; font-size: 16px; border: 2px solid #cbd5e1; outline: none; min-width: 250px; font-weight: bold; cursor: pointer;">
                     ${this.employees.length > 0 
                       ? this.employees.map(emp => html`<option value="${emp.id}" ?selected="${emp.id === this.selectedEmpId}">[${emp.id}] ${emp.name} (${emp.grade})</option>`)
@@ -4130,7 +4442,7 @@
 
                       ${selectedEmp.hasCert ? html`
                         <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; color: #1d4ed8; font-weight: 600; font-size: 14px;">
-                          ✅ 정신건강사회복지사 자격증 보유 1호봉 추가
+                          정신건강사회복지사 자격증 보유 1호봉 추가
                         </div>
                       ` : ''}
 
@@ -4201,47 +4513,47 @@
 
             ${this.activeTab === 'leave-grant' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">🌴 휴가부여</h2>
+                <div class="page-head"><h2>휴가부여</h2><p class="sub">직원별 또는 일괄로 휴가를 부여하고 부여 내역을 확인합니다.</p></div>
 
                 <div class="card" style="margin-bottom:24px;">
                   <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
-                      <select @change="${(e) => { this.lgEmpId = e.target.value; if (this.lgEmpId !== '전체') this._loadLeaveGrants(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:190px; box-sizing:border-box;">
+                      <label class="fld-label">직원</label>
+                      <select @change="${(e) => { this.lgEmpId = e.target.value; if (this.lgEmpId !== '전체') this._loadLeaveGrants(); }}" style="width:190px;">
                         <option value="전체" ?selected="${(this.lgEmpId || '전체') === '전체'}">전 직원</option>
                         ${(this.allEmployees || []).map(emp => html`<option value="${emp.id}" ?selected="${this.lgEmpId === emp.id}">[${emp.id}] ${emp.name}</option>`)}
                       </select>
                     </div>
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">항목</label>
-                      <select @change="${(e) => this.lgBulkItem = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">항목</label>
+                      <select @change="${(e) => this.lgBulkItem = e.target.value}" >
                         ${(this.lgItems || []).map(it => html`<option value="${it}" ?selected="${(this.lgBulkItem || (this.lgItems && this.lgItems[0])) === it}">${it}</option>`)}
                       </select>
                     </div>
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">시간</label>
-                      <input type="number" step="0.5" .value="${this.lgBulkHours != null ? this.lgBulkHours : 8}" @change="${(e) => this.lgBulkHours = parseFloat(e.target.value) || 0}" style="height:44px; width:90px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">시간</label>
+                      <input type="number" step="0.5" .value="${this.lgBulkHours != null ? this.lgBulkHours : 8}" @change="${(e) => this.lgBulkHours = parseFloat(e.target.value) || 0}" style="width:90px;">
                     </div>
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">유급/무급</label>
-                      <select @change="${(e) => this.lgBulkPaid = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">유급/무급</label>
+                      <select @change="${(e) => this.lgBulkPaid = e.target.value}" >
                         <option value="유급" ?selected="${(this.lgBulkPaid || '유급') === '유급'}">유급</option>
                         <option value="무급" ?selected="${this.lgBulkPaid === '무급'}">무급</option>
                       </select>
                     </div>
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">적용연도</label>
-                      <input type="number" .value="${this.lgYear}" @change="${(e) => this.lgYear = parseInt(e.target.value)}" style="height:44px; width:105px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">적용연도</label>
+                      <input type="number" .value="${this.lgYear}" @change="${(e) => this.lgYear = parseInt(e.target.value)}" style="width:105px;">
                     </div>
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">부여일자</label>
-                      <input type="date" .value="${this.lgBulkDate || ''}" @change="${(e) => this.lgBulkDate = e.target.value}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">부여일자</label>
+                      <input type="date" .value="${this.lgBulkDate || ''}" @change="${(e) => this.lgBulkDate = e.target.value}" >
                     </div>
                     <div style="flex:1; min-width:150px;">
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">사유/비고</label>
-                      <input type="text" .value="${this.lgBulkNote || ''}" @change="${(e) => this.lgBulkNote = e.target.value}" placeholder="예: 3.1 근무 대체" style="height:44px; width:100%; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">사유/비고</label>
+                      <input type="text" .value="${this.lgBulkNote || ''}" @change="${(e) => this.lgBulkNote = e.target.value}" placeholder="예: 3.1 근무 대체" style="width:100%;">
                     </div>
-                    <button class="btn btn-primary" @click="${() => this._doGrant()}" style="height:44px; padding:0 28px; box-sizing:border-box;">${(this.lgEmpId || '전체') === '전체' ? '전 직원 부여' : '부여'}</button>
+                    <button class="btn btn-primary" @click="${() => this._doGrant()}" >${(this.lgEmpId || '전체') === '전체' ? '전 직원 부여' : '부여'}</button>
                   </div>
 
                   ${this.lgEmpId && this.lgEmpId !== '전체' ? html`
@@ -4287,7 +4599,7 @@
 
           ${this.activeTab === 'attendance-record' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">🕘 근태현황</h2>
+                <div class="page-head"><h2>근태현황</h2><p class="sub">근태 파일을 올려 반영하고 기간별 근태 기록을 조회합니다.</p></div>
 
                 ${this._wsUploadCard('att')}
                 ${this._attFilterCard(() => this._loadAttRecords(), 'attEmpName')}
@@ -4319,7 +4631,7 @@
             ` : ''}
             ${this.activeTab === 'ot-status' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">⏰ 시간외근무현황</h2>
+                <div class="page-head"><h2>시간외근무현황</h2><p class="sub">기간·직원별 시간외근무 실적과 누적 시간을 조회합니다.</p></div>
 
                 ${this._wsUploadCard('ot')}
                 ${this._attFilterCard(() => this._loadOvertime(), 'attEmpName')}
@@ -4355,7 +4667,7 @@
 
             ${this.activeTab === 'leave-status' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:20px;">📊 휴가현황</h2>
+                <div class="page-head"><h2>휴가현황</h2><p class="sub">직원별 휴가 부여·사용·잔여 시간을 확인합니다.</p></div>
 
                 ${this._wsUploadCard('leave')}
 
@@ -4384,43 +4696,48 @@
                 ` : ''}
 
                 <h3 style="color:#0f172a; margin:28px 0 12px;">잔여 현황</h3>
-                <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+                <div class="toolbar" style="align-items:flex-end;">
                   <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">직원</label>
-                    <select @change="${(e) => { this.lgBalEmpId = e.target.value; }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; min-width:200px; box-sizing:border-box;">
+                    <label class="fld-label">직원</label>
+                    <select @change="${(e) => { this.lgBalEmpId = e.target.value; }}" style="width:200px;">
                       <option value="전체" ?selected="${(this.lgBalEmpId || '전체') === '전체'}">전체 직원</option>
                       ${(this.allEmployees || []).map(emp => html`<option value="${emp.id}" ?selected="${this.lgBalEmpId === emp.id}">[${emp.id}] ${emp.name}</option>`)}
                     </select>
                   </div>
-                  <button class="btn btn-primary" @click="${() => this._loadAllBalance()}" style="height:44px; padding:0 28px; box-sizing:border-box;">조회</button>
+                  <button class="btn btn-primary" @click="${() => this._loadAllBalance()}" >조회</button>
                 </div>
 
-                ${this.lgAllBalance && this.lgAllBalance.length ? html`
-                  <div class="card" style="padding:16px;">
-                    <div style="display:flex; gap:16px; align-items:center; margin-bottom:12px; font-size:13px;">
-                      <span style="color:#2563eb; font-weight:600;">■ 부여</span>
-                      <span style="color:#dc2626; font-weight:600;">■ 사용</span>
-                      <span style="color:#0f172a; font-weight:600;">■ 잔여</span>
+                ${this.lgAllBalance && this.lgAllBalance.length ? (() => {
+                  const cols = this._balColumns();
+                  const people = (this.lgAllBalance || []).filter(p => (this.lgBalEmpId || '전체') === '전체' || p.empId === this.lgBalEmpId);
+                  // 아무도 부여받지 않은 휴가 종류는 열에서 빼 표를 좁힌다
+                  const used = cols.filter(c => people.some(p => (p.balances || []).some(x => x.item === c)));
+                  const shown = used.length ? used : cols;
+                  return html`
+                  <div class="card" style="padding:0; overflow:hidden;">
+                    <div style="padding:13px 16px; border-bottom:1px solid #e4eae7; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+                      <span style="font-weight:700; font-size:13.5px;">${people.length}명</span>
+                      <span style="font-size:12.5px; color:#7c8f88;">칸의 큰 숫자가 <strong style="color:#16211d;">잔여</strong>, 아래 작은 글씨가 부여·사용입니다.</span>
                     </div>
-                    <div style="overflow-x:auto;">
-                      <table style="border-collapse:collapse; font-size:13px;">
+                    <div class="bal-scroll" style="border:0; border-radius:0;">
+                      <table class="bal-table">
                         <thead>
                           <tr>
-                            <th style="position:sticky; left:0; background:#f1f5f9; z-index:1;">직원</th>
-                            ${this._balColumns().map(c => html`<th style="text-align:center; white-space:nowrap;">${c}</th>`)}
+                            <th class="bal-name">직원</th>
+                            ${shown.map(c => html`<th>${c}</th>`)}
                           </tr>
                         </thead>
                         <tbody>
-                          ${(this.lgAllBalance || []).filter(p => (this.lgBalEmpId || '전체') === '전체' || p.empId === this.lgBalEmpId).map(p => html`
+                          ${people.map(p => html`
                             <tr>
-                              <td style="font-weight:600; position:sticky; left:0; background:white; white-space:nowrap;">${p.name}</td>
-                              ${this._balColumns().map(c => {
+                              <td class="bal-name">${p.name}</td>
+                              ${shown.map(c => {
                                 const b = (p.balances || []).find(x => x.item === c);
-                                if (!b) return html`<td style="text-align:center; color:#cbd5e1;">-</td>`;
-                                return html`<td style="text-align:center; white-space:nowrap; line-height:1.7;">
-                                  <div style="color:#2563eb;">${b.grantText}</div>
-                                  <div style="color:#dc2626;">${b.usedText}</div>
-                                  <div style="color:#0f172a; font-weight:700;">${b.balanceText}</div>
+                                if (!b) return html`<td class="bal-none">·</td>`;
+                                const zero = !(b.balanceHours > 0);
+                                return html`<td>
+                                  <div class="bal-rem ${zero ? 'zero' : ''}">${b.balanceText}</div>
+                                  <div class="bal-sub">${b.grantText} 부여 · ${b.usedText} 사용</div>
                                 </td>`;
                               })}
                             </tr>
@@ -4428,14 +4745,14 @@
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                ` : html`<div class="card"><p style="text-align:center; color:#64748b; padding:40px;">조회를 누르세요.</p></div>`}
+                  </div>`;
+                })() : html`<div class="card"><p class="empty">직원을 고르고 조회를 누르세요.</p></div>`}
               </div>
             ` : ''}
 
             ${this.activeTab === 'policy-tables' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">📋 정책·기준표</h2>
+                <h2 style="margin:0 0 8px;">정책·기준표</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:24px;">
                   급여·공제·휴가 계산의 <strong>기준 데이터</strong>다. 각 표를 최신으로 유지해야 계산이 맞다.
                   <span style="color:#0f766e;">수동</span> = 기관이 직접 입력, <span style="color:#b45309;">보조</span> = 공식자료로 채우고 주기적으로 갱신.
@@ -4457,7 +4774,7 @@
                             : html`<span style="color:#dc2626;">시트 없음</span>`}</div>
                         </div>
                         <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
-                          <a href="${p.sheetUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">📂 스프레드시트에서 편집</a>
+                          <a href="${p.sheetUrl}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;">스프레드시트에서 편집</a>
                           ${p.screen ? html`<button class="btn btn-outline btn-sm" @click="${() => this._openPolicyScreen(p.screen)}">이 앱에서 편집</button>` : ''}
                         </div>
                       </div>
@@ -4472,7 +4789,7 @@
 
             ${this.activeTab === 'basic-salary' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">💵 기본급표</h2>
+                <h2 style="margin:0 0 8px;">기본급표</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
                   급수·호봉별 월 기본급. 지자체·법인 임금테이블을 <strong>엑셀에서 복사해 붙여넣기</strong>하거나 파일로 올린다. 두 형식 모두 인식한다:
                   <br>· <strong>목록형</strong> — 헤더에 <code>급수 · 호봉 · 금액</code>(선택: <code>연도</code>) 열, 한 줄 = 한 칸. 급수는 <code>1</code>/<code>1급</code>/<code>관리직</code> 등 그대로.
@@ -4482,24 +4799,24 @@
                 <div class="card" style="margin-bottom:20px;">
                   <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px;">
                     <div>
-                      <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">적용 연도</label>
-                      <select @change="${(e) => { this.bsYear = e.target.value; this._loadBasicSalary(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                      <label class="fld-label">적용 연도</label>
+                      <select @change="${(e) => { this.bsYear = e.target.value; this._loadBasicSalary(); }}" >
                         <option value="" ?selected="${!this.bsYear}">연도 공통 (모든 연도)</option>
                         ${[0,1,2,-1].map(d => new Date().getFullYear() + d).map(y => html`<option value="${y}" ?selected="${this.bsYear == y}">${y}년</option>`)}
                       </select>
                     </div>
                     <div class="file-input-wrapper">
-                      <label class="file-input-label" for="bsFile">📁 엑셀 파일</label>
+                      <label class="file-input-label" for="bsFile">엑셀 파일</label>
                       <input type="file" id="bsFile" accept=".csv,.xlsx,.xls" @change="${(e) => this._bsHandleFile(e)}">
                     </div>
                   </div>
-                  <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">또는 엑셀에서 복사한 표를 붙여넣기</label>
+                  <label class="fld-label">또는 엑셀에서 복사한 표를 붙여넣기</label>
                   <textarea .value="${this.bsPasteText || ''}" @input="${(e) => this.bsPasteText = e.target.value}" rows="6"
                     placeholder="엑셀에서 표(급수 헤더 + 호봉 행)를 그대로 복사해 여기에 붙여넣으세요. 예) 첫 줄: (빈칸) 1급 2급 3급 / 다음 줄: 1 1730000 1810000 1900000"
                     style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:monospace; font-size:13px;"></textarea>
                   <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
                     <button class="btn btn-outline" @click="${() => this._bsApplyPaste()}">붙여넣기 읽기</button>
-                    <button class="btn btn-primary" @click="${() => this._saveBasicSalary()}" ?disabled="${!this.bsRows || !this.bsRows.length}">💾 저장</button>
+                    <button class="btn btn-primary" @click="${() => this._saveBasicSalary()}" ?disabled="${!this.bsRows || !this.bsRows.length}">저장</button>
                   </div>
                   ${this.bsMsg ? html`<div style="margin-top:14px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.bsMsg}</div>` : ''}
                 </div>
@@ -4522,22 +4839,22 @@
 
             ${this.activeTab === 'tax-rates' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">🧮 세금·퇴직금 요율</h2>
+                <h2 style="margin:0 0 8px;">세금·퇴직금 요율</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
                   월급계산의 <strong>4대보험·퇴직적립금·지방소득세</strong> 공제에 쓰인다. 매년 각 공단·지자체 발표로 확인·수정한다.
                   <br><span style="color:#b45309;">장기요양</span>은 <u>건강보험료</u> 대비 %, <span style="color:#b45309;">주민세</span>는 <u>소득세</u> 대비 %. 나머지는 과세급여 대비 %.
                   소득세는 간이세액표에서 조회하므로 여기 없다.
                 </p>
 
-                <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+                <div class="toolbar" style="align-items:flex-end;">
                   <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">연도</label>
-                    <select @change="${(e) => { this.taxYear = parseInt(e.target.value, 10); this._loadTaxRates(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                    <label class="fld-label">연도</label>
+                    <select @change="${(e) => { this.taxYear = parseInt(e.target.value, 10); this._loadTaxRates(); }}" >
                       ${[0,1,2,-1,-2].map(d => new Date().getFullYear() + d).map(y => html`<option value="${y}" ?selected="${this.taxYear === y}">${y}년</option>`)}
                     </select>
                   </div>
-                  <button class="btn btn-outline" @click="${() => this._fillTaxStandard()}" style="height:44px;">표준 요율 불러오기</button>
-                  <button class="btn btn-primary" @click="${() => this._saveTaxRates()}" style="height:44px; padding:0 28px;">💾 ${this.taxYear}년 저장</button>
+                  <button class="btn btn-outline" @click="${() => this._fillTaxStandard()}" >표준 요율 불러오기</button>
+                  <button class="btn btn-primary" @click="${() => this._saveTaxRates()}" >${this.taxYear}년 저장</button>
                 </div>
 
                 <div class="card">
@@ -4567,7 +4884,7 @@
 
             ${this.activeTab === 'income-tax' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">🧾 간이세액표</h2>
+                <h2 style="margin:0 0 8px;">간이세액표</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
                   국세청 <strong>근로소득 간이세액표</strong>. 월급계산의 소득세를 급여구간·부양가족수로 조회한다.
                   <a href="https://www.nts.go.kr" target="_blank" rel="noopener" style="color:#0f766e;">국세청</a>에서 받은 엑셀을 올리면
@@ -4579,7 +4896,7 @@
                     현재 시트: ${this.itInfo ? html`<strong style="color:${this.itInfo.rows ? '#0f766e' : '#dc2626'};">${this.itInfo.rows}개 구간</strong>` : '확인 중...'}
                   </div>
                   <div class="file-input-wrapper">
-                    <label class="file-input-label" for="itFile">📁 간이세액표 엑셀</label>
+                    <label class="file-input-label" for="itFile">간이세액표 엑셀</label>
                     <input type="file" id="itFile" accept=".csv,.xlsx,.xls" @change="${(e) => this._itHandleFile(e)}">
                   </div>
                   <button class="btn btn-primary" @click="${() => this._itImport()}" ?disabled="${!this.itPreview || !this.itPreview.length}" style="margin-left:10px; padding:12px 24px;">반영 (전체 교체)</button>
@@ -4606,22 +4923,22 @@
 
             ${this.activeTab === 'holidays' ? html`
               <div>
-                <h2 style="margin-top:0; color:#0f172a; margin-bottom:8px;">📅 공휴일</h2>
+                <h2 style="margin:0 0 8px;">공휴일</h2>
                 <p style="color:#64748b; margin-top:0; margin-bottom:20px;">
                   법정공휴일·대체공휴일. 연차 자동부여(개관기념일이 평일인지 판정 등)에 쓰인다.
                   <strong>구글 캘린더에서 가져오기</strong>로 한 해 공휴일을 채운 뒤 확인·수정해 저장한다.
                 </p>
 
-                <div class="card" style="margin-bottom:20px; display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+                <div class="toolbar" style="align-items:flex-end;">
                   <div>
-                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#475569; font-size:13px;">연도</label>
-                    <select @change="${(e) => { this.hlYear = parseInt(e.target.value, 10); this._loadHolidays(); }}" style="height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; box-sizing:border-box;">
+                    <label class="fld-label">연도</label>
+                    <select @change="${(e) => { this.hlYear = parseInt(e.target.value, 10); this._loadHolidays(); }}" >
                       ${[1,0,-1,2].map(d => new Date().getFullYear() + d).sort((a,b)=>a-b).map(y => html`<option value="${y}" ?selected="${this.hlYear === y}">${y}년</option>`)}
                     </select>
                   </div>
-                  <button class="btn btn-outline" @click="${() => this._hlFetch()}" style="height:44px;">📥 구글 캘린더에서 가져오기</button>
-                  <button class="btn btn-outline" @click="${() => this._hlAdd()}" style="height:44px;">+ 행 추가</button>
-                  <button class="btn btn-primary" @click="${() => this._saveHolidays()}" ?disabled="${!this.hlDirty}" style="height:44px; padding:0 28px;">💾 ${this.hlYear}년 저장</button>
+                  <button class="btn btn-outline" @click="${() => this._hlFetch()}" >구글 캘린더에서 가져오기</button>
+                  <button class="btn btn-outline" @click="${() => this._hlAdd()}" >+ 행 추가</button>
+                  <button class="btn btn-primary" @click="${() => this._saveHolidays()}" ?disabled="${!this.hlDirty}" >${this.hlYear}년 저장</button>
                 </div>
                 ${this.hlMsg ? html`<div style="margin-bottom:16px; padding:12px; background:#f1f5f9; border-radius:8px; color:#334155; font-size:14px; white-space:pre-wrap;">${this.hlMsg}</div>` : ''}
 
