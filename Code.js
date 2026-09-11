@@ -50,6 +50,7 @@ const APP_TITLE = _cfg_('APP_TITLE', CONFIG.APP_TITLE);
 // 최초 세팅용: 편집기에서 실행 (인자 채워서) 또는 웹앱에서 호출.
 //  setOrgConfig('○○기관', '○○기관 통합관리')
 function setOrgConfig(orgName, appTitle) {
+  requireAdmin_();
   const p = PropertiesService.getScriptProperties();
   if (orgName) p.setProperty('ORG_NAME', orgName.toString().trim());
   if (appTitle) p.setProperty('APP_TITLE', appTitle.toString().trim());
@@ -58,12 +59,73 @@ function setOrgConfig(orgName, appTitle) {
 
 // 프론트엔드(index.html)로 전달하는 기관 설정
 function getAppConfig() {
-  return { orgName: ORG_NAME, appTitle: APP_TITLE, configured: ORG_NAME.indexOf('____') === -1 };
+  var sheetsReady = false;
+  try { sheetsReady = !!SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부'); } catch (e) {}
+  return { orgName: ORG_NAME, appTitle: APP_TITLE, configured: ORG_NAME.indexOf('____') === -1, isAdmin: isAdmin_(), sheetsReady: sheetsReady };
 }
 
 // =========================================================================
 // 전국 사회복지시설 통합 호봉산정 시스템 (1-indexed & 4급 자동 승급 반영)
 // =========================================================================
+
+// =========================================================================
+// 관리자 권한 (2026-09-11 추가)
+//   이 앱 전체가 인사·급여 담당자용 관리 도구라 "직원 자기서비스"개념이 없음 —
+//   그래서 로그인한 사람 = 등록된 관리자 인지만 판정한다. 스크립트 편집자 권한과는
+//   무관: 편집자가 아니어도 관리자 명단에만 있으면 앱을 정상적으로 쓸 수 있고,
+//   반대로 편집자라도 이 명단에 없으면 앱 데이터에 접근 못 한다(코드는 볼 수 있음).
+// =========================================================================
+// 읽기 전용 판정 — 부작용 없음(관리자 자동 등록 안 함). getAppConfig 처럼 페이지 로드 시
+// 자동 호출되는 함수에서 써도, 그냥 열어보는 것만으로 관리자가 되지는 않는다.
+function isAdmin_() {
+  var email = '';
+  try { email = (Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
+  if (!email) return false;
+  var raw = PropertiesService.getScriptProperties().getProperty('SUPER_ADMIN_EMAILS');
+  if (!raw) return false;
+  return raw.split(/[,\s]+/).map(function (s) { return s.trim().toLowerCase(); }).indexOf(email) !== -1;
+}
+// 실제 관리 동작(설정 저장/데이터 열람 등)을 할 때만 통과되는 가드.
+// 관리자 명단이 비어 있고 시스템도 아직 초기 설정 전(빈 사본)이면, 지금 이 동작을 시도한
+// 사람을 최초 관리자로 등록한다 — 단순히 화면을 열어보기만 해서는(getAppConfig) 등록되지 않는다.
+function requireAdmin_() {
+  var email = '';
+  try { email = (Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
+  if (!email) throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
+  var p = PropertiesService.getScriptProperties();
+  var raw = p.getProperty('SUPER_ADMIN_EMAILS');
+  if (!raw) {
+    var cfg = safe_getAppConfig_();
+    if (!cfg.configured) { p.setProperty('SUPER_ADMIN_EMAILS', email); return; }
+    throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
+  }
+  if (raw.split(/[,\s]+/).map(function (s) { return s.trim().toLowerCase(); }).indexOf(email) === -1) {
+    throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
+  }
+}
+function safe_getAppConfig_() { try { return getAppConfig(); } catch (e) { return { configured: false }; } }
+
+// 관리자 추가/조회 — 관리자만 가능(첫 관리자는 위에서 자동 등록됨)
+function addAdmin(email) {
+  requireAdmin_();
+  var p = PropertiesService.getScriptProperties();
+  var cur = (p.getProperty('SUPER_ADMIN_EMAILS') || '').split(/[,\s]+/).map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+  var e = String(email || '').trim().toLowerCase();
+  if (e && cur.indexOf(e) === -1) cur.push(e);
+  p.setProperty('SUPER_ADMIN_EMAILS', cur.join(','));
+  return { success: true, admins: cur };
+}
+function removeAdmin(email) {
+  requireAdmin_();
+  var p = PropertiesService.getScriptProperties();
+  var e = String(email || '').trim().toLowerCase();
+  var cur = (p.getProperty('SUPER_ADMIN_EMAILS') || '').split(/[,\s]+/).map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+  cur = cur.filter(function (x) { return x !== e; });
+  if (!cur.length) throw new Error('마지막 관리자는 제거할 수 없습니다.');
+  p.setProperty('SUPER_ADMIN_EMAILS', cur.join(','));
+  return { success: true, admins: cur };
+}
+function getAdmins() { requireAdmin_(); return (PropertiesService.getScriptProperties().getProperty('SUPER_ADMIN_EMAILS') || '').split(/[,\s]+/).filter(Boolean); }
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
@@ -76,6 +138,7 @@ function getActiveSheetByName(name) {
 }
 
 function getHobongData() {
+  requireAdmin_();
   const masterSheet = getActiveSheetByName('호봉관리');
   const detailSheet = getActiveSheetByName('경력상세');
   
@@ -423,6 +486,7 @@ function getMonthlyHobongInfo(empId, year) {
   }
 }
 function addCareerWeb(empId, workplace, start, end, ratio) {
+  requireAdmin_();
   const sheet = getActiveSheetByName('경력상세');
   let finalEnd = end;
   if (!end || end.trim() === '') finalEnd = '재직중';
@@ -431,6 +495,7 @@ function addCareerWeb(empId, workplace, start, end, ratio) {
 }
 
 function deleteCareerWeb(rowIndex) {
+  requireAdmin_();
   const sheet = getActiveSheetByName('경력상세');
   sheet.deleteRow(rowIndex + 1); 
   return getHobongData();
@@ -439,6 +504,7 @@ function deleteCareerWeb(rowIndex) {
 
 // 직원명부에서 모든 직원 조회
 function getAllEmployeesFromMaster() {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const data = masterSheet.getDataRange().getValues();
   
@@ -501,6 +567,7 @@ function addToHobongSheet(empId, masterRowIndex) {
 
 // 전직원호봉현황 - 호봉관리 시트 전체 읽기 (읽기 전용)
 function getAllHobongStatus() {
+  requireAdmin_();
   try {
     const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
     if (!hobongSheet) {
@@ -587,6 +654,7 @@ function recordOrgCareer(empId, leaveDate) {
 }
 
 function getEmployeeDetail(empId) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const data = masterSheet.getDataRange().getValues();
 
@@ -665,6 +733,7 @@ function saveEmployeeInfo(empId, joinDate, leaveDate) {
 
 // 직원상세 - 전체 필드 수정 저장 (A~X 24열)
 function updateEmployeeFull(data) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const rows = masterSheet.getDataRange().getValues();
 
@@ -753,6 +822,7 @@ function syncHobongFromMaster(empId, grade, position, cert, certGrade, certDate)
 // 신규 직원 ID 자동 생성: 직원명부의 EMP 번호 중 최대값 + 1
 // 형식: EMP + 2자리 0 패딩 (예: 마지막이 EMP18이면 EMP19). 100 이상이면 EMP100.
 function getNextEmployeeId() {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   if (!masterSheet) return 'EMP01';
   const data = masterSheet.getDataRange().getValues();
@@ -773,6 +843,7 @@ function getNextEmployeeId() {
 }
 
 function addNewEmployee(data) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   
   masterSheet.appendRow([
@@ -820,6 +891,7 @@ function addNewEmployee(data) {
 }
 
 function getBasicSalary(grade, hobon) {
+  requireAdmin_();
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName("기본급");
   const data = sheet.getDataRange().getValues();
   
@@ -907,6 +979,7 @@ function initPersonalSalarySheet() {
 }
 
 function saveSalaryPersonal(empId, empName, year, basicSalary, allowancesJson) {
+  requireAdmin_();
   try {
     const sheet = initPersonalSalarySheet();
     if (!sheet) return { success: false, message: '시트 없음' };
@@ -977,6 +1050,7 @@ function loadSalaryPersonal(empId, year) {
 }
 
 function saveEmpAllowances(empAllowancesJson, empId, empName) {
+  requireAdmin_();
   try {
     
     // 개인수당설정 시트 가져오기 (없으면 생성)
@@ -1019,6 +1093,7 @@ function saveEmpAllowances(empAllowancesJson, empId, empName) {
 }
 
 function loadEmpAllowances(empId) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('개인수당설정');
     if (!sheet) return null;
@@ -1048,6 +1123,7 @@ function loadEmpAllowances(empId) {
 // =========================================================================
 
 function addAllowanceColumn(allowanceName) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('연봉표');
     if (!sheet) return { success: false, message: '연봉표 시트가 없습니다.' };
@@ -1070,6 +1146,7 @@ function addAllowanceColumn(allowanceName) {
 }
 
 function saveSalaryRecord(salaryRecordJson) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('연봉표');
     if (!sheet) return { success: false, message: '연봉표 시트가 없습니다.' };
@@ -1147,6 +1224,7 @@ function saveSalaryRecord(salaryRecordJson) {
 // 전체 연봉표 - 재직 직원 전원 데이터를 한 번에 반환
 // =========================================================================
 function getAllSalaryData(year) {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const props = PropertiesService.getUserProperties();
 
@@ -1365,6 +1443,7 @@ function _findTaxSheet_(ss, createIfMissing) {
 
 // 폼 초기화용: 항목 목록 + 표준값 + 해당 연도 저장값
 function getTaxRatesForYear(year) {
+  requireAdmin_();
   return {
     items: TAX_RATE_ITEMS,
     standard: TAX_RATE_STANDARD,
@@ -1374,6 +1453,7 @@ function getTaxRatesForYear(year) {
 
 // 폼 저장: 그 연도 항목별 비율을 세금/퇴직금 시트에 upsert
 function saveTaxRates(year, ratesJson) {
+  requireAdmin_();
   try {
     year = parseInt(year, 10);
     const rates = (typeof ratesJson === 'string') ? JSON.parse(ratesJson) : (ratesJson || {});
@@ -1409,6 +1489,7 @@ function saveTaxRates(year, ratesJson) {
 
 // 폼 표시용: {year, grades:[...], rows:[{hobon, amounts:{급수:금액}}]}
 function getBasicSalaryTable(year) {
+  requireAdmin_();
   year = (year == null ? '' : year.toString().trim());
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('기본급');
@@ -1436,6 +1517,7 @@ function getBasicSalaryTable(year) {
 // 저장: rows [{grade, hobon, amount}], year '' 또는 연도.
 // 같은 연도-스코프 기존 행을 지우고 새로 씀 (빈 연도는 빈 연도끼리).
 function saveBasicSalary(rowsJson, year) {
+  requireAdmin_();
   try {
     const rows = (typeof rowsJson === 'string') ? JSON.parse(rowsJson) : (rowsJson || []);
     year = (year == null ? '' : year.toString().trim());
@@ -1494,6 +1576,7 @@ const POLICY_SHEETS = [
 // av_isWorkday 는 A열 날짜만 본다.
 // =========================================================================
 function getHolidays(year) {
+  requireAdmin_();
   year = (year == null ? '' : year.toString().trim());
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('공휴일');
@@ -1515,6 +1598,7 @@ function getHolidays(year) {
 
 // rows: [{date:'YYYY-MM-DD', name}], year: 그 해 것만 교체 (빈 값이면 전체 교체)
 function saveHolidays(rowsJson, year) {
+  requireAdmin_();
   try {
     const rows = (typeof rowsJson === 'string') ? JSON.parse(rowsJson) : (rowsJson || []);
     year = (year == null ? '' : year.toString().trim());
@@ -1552,6 +1636,7 @@ function saveHolidays(rowsJson, year) {
 
 // 구글 '대한민국 공휴일' 공개 캘린더에서 그 해 공휴일을 가져온다 (저장은 안 함).
 function fetchKoreanHolidays(year) {
+  requireAdmin_();
   year = parseInt(year, 10) || new Date().getFullYear();
   const id = 'ko.south_korea#holiday@group.v.calendar.google.com';
   let cal = CalendarApp.getCalendarById(id);
@@ -1573,6 +1658,7 @@ function fetchKoreanHolidays(year) {
 }
 
 function getPolicySheetsInfo() {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const url = ss.getUrl();
   const all = ss.getSheets();
@@ -1615,6 +1701,7 @@ function getTaxRates(year) {
 // 연봉표 메일 발송 - 직원명부 L열(이메일) 참조, 본문 HTML은 클라이언트에서 생성
 // =========================================================================
 function sendSalaryEmail(empId, subject, htmlBody) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
     if (!sheet) return { success: false, message: '직원명부 시트 없음' };
@@ -1694,6 +1781,7 @@ function initMonthlySalarySheet() {
 //   pension,health,longterm,employment,industrial,insuranceSubtotal,incomeTax,residentTax,
 //   retirement,deductionTotal,netPay}]
 function saveMonthlySalary(records) {
+  requireAdmin_();
   try {
     if (!records || !records.length) return { success: false, message: '저장할 데이터가 없습니다.' };
     const ss = SpreadsheetApp.openById(SS_ID);
@@ -1773,6 +1861,7 @@ function setupWorkSheets() {
 // 이미 있는 시트는 건드리지 않는다(첫 셀이 헤더면 통과).
 // =========================================================================
 function setupAllSheets() {
+  requireAdmin_();
   const created = [];
   const mk = function (name, headers) {
     const ss = SpreadsheetApp.openById(SS_ID);
@@ -2028,6 +2117,7 @@ function getWorkSummary(year, month) {
 // 월급계산용 통합 데이터 (한 번의 호출로 계산에 필요한 모든 것)
 // =========================================================================
 function getPayrollData(year, month) {
+  requireAdmin_();
   year = parseInt(year, 10);
   month = parseInt(month, 10);
   const all = getAllSalaryData(year);          // {settings, employees[]}
@@ -2080,6 +2170,7 @@ const INCOME_TAX_HEADER = ['급여이상', '급여미만', '1인', '2인', '3인
 
 // 화면 표시용: 행수 + 앞/뒤 미리보기
 function getIncomeTaxTableInfo() {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('간이세액표');
   if (!sheet || sheet.getLastRow() < 2) return { rows: 0, head: [], tail: [] };
@@ -2091,6 +2182,7 @@ function getIncomeTaxTableInfo() {
 
 // 업로드 반영: rows = [[이상, 미만, t1..t11]] 숫자 배열. 시트 전체 교체.
 function saveIncomeTaxTable(rowsJson) {
+  requireAdmin_();
   try {
     const rows = (typeof rowsJson === 'string') ? JSON.parse(rowsJson) : (rowsJson || []);
     if (!rows.length) return { success: false, message: '데이터가 없습니다.' };
@@ -2118,6 +2210,7 @@ function saveIncomeTaxTable(rowsJson) {
 }
 
 function lookupIncomeTax(taxableSalary, dependents) {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('간이세액표');
   if (!sheet) return { found: false, tax: 0, message: '간이세액표 시트 없음' };
@@ -2164,6 +2257,7 @@ function lookupIncomeTaxBatch(items) {
 // 급여대장(프린트)용 - 월급표 + 직원 팀(부서) 결합 조회
 // =========================================================================
 function getPayrollLedger(year, month) {
+  requireAdmin_();
   const rows = getMonthlySalary(year, month); // 재원별 다중 행
   if (!rows.length) return { rows: [], teams: {} };
 
@@ -2187,6 +2281,7 @@ function getPayrollLedger(year, month) {
 // 반환: {sources:[...], items:[{name, bySource:{}, total}], salaryRatio:{src:%}}
 // =========================================================================
 function getPayrollStats(year, fromMonth, toMonth, empId) {
+  requireAdmin_();
   year = parseInt(year, 10);
   fromMonth = parseInt(fromMonth, 10);
   toMonth = parseInt(toMonth, 10);
@@ -2262,6 +2357,7 @@ function _ageFromDate_(bd) {
 }
 
 function getBudgetData(year) {
+  requireAdmin_();
   year = parseInt(year, 10);
   const ss = SpreadsheetApp.openById(SS_ID);
   const curYear = new Date().getFullYear(); // 요율·소득세는 현재(작업 시점) 연도 기준 (내년 요율 미발표)
@@ -2567,6 +2663,7 @@ function _buildSettingsFromSheet(year) {
 
 // 제수당 시트의 그 해 설정을 JSON 문자열로 (설정 화면 로드용)
 function getAllowanceSettings(year) {
+  requireAdmin_();
   return JSON.stringify(_buildSettingsFromSheet(year));
 }
 
@@ -2575,6 +2672,7 @@ function getAllowanceSettings(year) {
 // settings: _buildSettingsFromSheet가 반환하는 형태와 동일
 // =========================================================================
 function saveAllowancesToSheet(year, settings) {
+  requireAdmin_();
   try {
     year = parseInt(year, 10);
     if (typeof settings === 'string') { settings = JSON.parse(settings); }
@@ -2647,6 +2745,7 @@ function saveAllowancesToSheet(year, settings) {
 // rows: 클라이언트 예산 계산 결과 배열 (+ 복지포인트)
 // =========================================================================
 function saveBudgetData(year, rows) {
+  requireAdmin_();
   try {
     year = parseInt(year, 10);
     if (typeof rows === 'string') rows = JSON.parse(rows);
@@ -2694,6 +2793,7 @@ function saveBudgetData(year, rows) {
 // 재원 구분 없이 직원별 합산. 이메일=직원명부 L열
 // =========================================================================
 function sendPayslipEmails(year, month) {
+  requireAdmin_();
   try {
     year = parseInt(year, 10);
     month = parseInt(month, 10);
@@ -2798,6 +2898,7 @@ function _attInRange_(ymd, filters) {
 // 근태기록(직원ID·이름·연월일·출근시간·퇴근시간)
 // 반환 rows: [{date,empId,name,checkIn,checkOut,workedHours,missing}]
 function getAttendanceRecords(filters) {
+  requireAdmin_();
   filters = filters || {};
   const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('근태기록');
@@ -2833,6 +2934,7 @@ function getAttendanceRecords(filters) {
 // 시간외근로(직원ID·이름·연월일·시작시간·종료시간·비고)
 // 반환 rows: [{date,empId,name,start,end,hours,cumHours,note}] + 직원별 달력월 누적
 function getOvertimeRecords(filters) {
+  requireAdmin_();
   filters = filters || {};
   const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('시간외근로');
@@ -2870,6 +2972,7 @@ function getOvertimeRecords(filters) {
 // 휴가기록(직원ID·이름·연월일·휴가종류·사용시간)
 // 반환 rows: [{date,empId,name,leaveType,hours}]
 function getLeaveUsageRecords(filters) {
+  requireAdmin_();
   filters = filters || {};
   const empName = (filters.empName && filters.empName !== '전체') ? filters.empName : '';
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('휴가기록');
@@ -2927,12 +3030,14 @@ const LEAVE_GRANT_ITEMS = ['연차휴가', '대체휴무', '개관기념일', '�
 
 // 부여 항목 목록 (화면 드롭다운용)
 function getLeaveGrantItems() {
+  requireAdmin_();
   return LEAVE_GRANT_ITEMS;
 }
 
 // 부여 이력 조회. filters = { year: 적용연도(선택), empId: 직원ID 또는 '전체' }
 // 반환: [{ rowNum, empId, name, grantDate, year, item, days, note, registrar }]
 function getLeaveGrants(filters) {
+  requireAdmin_();
   filters = filters || {};
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return [];
@@ -2968,6 +3073,7 @@ function getLeaveGrants(filters) {
 
 // 한 건 부여. data = { empId, name, grantDate, year, item, days, note, registrar }
 function addLeaveGrant(data) {
+  requireAdmin_();
   try {
     const sheet = _ensureLeaveGrantSheet_();
     const days = (data.hours != null && data.hours !== '') ? (parseFloat(data.hours) || 0) / 8 : (parseFloat(data.days) || 0);
@@ -2983,6 +3089,7 @@ function addLeaveGrant(data) {
 
 // 여러 직원 일괄 부여. empList = [{id, name}], grant = { grantDate, year, item, days, note, registrar }
 function addLeaveGrantBulk(empList, grant) {
+  requireAdmin_();
   try {
     if (typeof empList === 'string') empList = JSON.parse(empList);
     if (typeof grant === 'string') grant = JSON.parse(grant);
@@ -3003,6 +3110,7 @@ function addLeaveGrantBulk(empList, grant) {
 // 수정. rowNum(시트 실제 행), data = { grantDate, year, item, days, note, registrar }
 // 직원ID·이름(A·B)은 고정, C~H만 수정
 function updateLeaveGrant(rowNum, data) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
     if (!sheet) return { success: false, message: '휴가대장 시트 없음' };
@@ -3018,6 +3126,7 @@ function updateLeaveGrant(rowNum, data) {
 
 // 삭제. rowNum(시트 실제 행)
 function deleteLeaveGrant(rowNum) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
     if (!sheet) return { success: false, message: '휴가대장 시트 없음' };
@@ -3381,6 +3490,7 @@ function bal_annualStart(empId) {
 
 // 직원 1명의 항목별 잔여
 function getLeaveBalance(empId) {
+  requireAdmin_();
   var today = (typeof av_today === 'function') ? av_today() : new Date();
   var year = today.getFullYear().toString();
   var out = [];
@@ -3425,6 +3535,7 @@ function bal_test() {
 
 // 반환: [{ empId, name, balances: [{item, grantHours, usedHours, balanceHours, grantText, usedText, balanceText}] }]
 function getAllLeaveBalance() {
+  requireAdmin_();
   var ss = SpreadsheetApp.openById(SS_ID);
   var year = ((typeof av_today === 'function') ? av_today() : new Date()).getFullYear().toString();
 

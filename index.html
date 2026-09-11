@@ -397,7 +397,7 @@
         hlRows: { type: Array },
         hlMsg: { type: String },
         hlDirty: { type: Boolean },
-        ocOrgName: { type: String },
+        ocOrgName: { type: String }, adminList: { type: Array }, adminDraft: { type: String }, adminMsg: { type: String }, settingUp: { type: Boolean }, setupMsg: { type: String },
         ocAppTitle: { type: String }
       };
 
@@ -2507,6 +2507,33 @@
         if (screen === 'holidays') this._loadHolidays();
       }
 
+      _setupAllSheets() {
+        this.settingUp = true; this.setupMsg = '';
+        google.script.run.withSuccessHandler(() => {
+          this.settingUp = false;
+          google.script.run.withSuccessHandler((cfg) => { this.appConfig = cfg; this.requestUpdate(); }).getAppConfig();
+        }).withFailureHandler((e) => { this.settingUp = false; this.setupMsg = e.message || String(e); this.requestUpdate(); })
+          .setupAllSheets();
+      }
+      _loadAdmins() {
+        google.script.run.withSuccessHandler((list) => { this.adminList = list || []; this.requestUpdate(); })
+          .withFailureHandler(() => { this.adminList = []; this.requestUpdate(); })
+          .getAdmins();
+      }
+      _addAdmin() {
+        const email = (this.adminDraft || '').trim();
+        if (!email) return;
+        this.adminMsg = '추가 중…';
+        google.script.run.withSuccessHandler((r) => { this.adminList = r.admins || []; this.adminDraft = ''; this.adminMsg = ''; this.requestUpdate(); })
+          .withFailureHandler((e) => { this.adminMsg = e.message || String(e); this.requestUpdate(); })
+          .addAdmin(email);
+      }
+      _removeAdmin(email) {
+        if (!confirm(email + ' 을(를) 관리자에서 제외할까요?')) return;
+        google.script.run.withSuccessHandler((r) => { this.adminList = r.admins || []; this.requestUpdate(); })
+          .withFailureHandler((e) => { alert(e.message || String(e)); })
+          .removeAdmin(email);
+      }
       _saveOrgConfig() {
         const name = (this.ocOrgName || '').trim();
         if (!name) { alert('기관명을 입력하세요.'); return; }
@@ -2514,10 +2541,11 @@
         this.isLoading = true;
         this.loadingMsg = '기관 설정 저장 중...';
         google.script.run.withSuccessHandler(() => {
-          this.isLoading = false;
-          this.appConfig = { orgName: name, appTitle: title, configured: true };
-          this.requestUpdate();
-          alert('저장했습니다. 편집기에서 setupAllSheets 를 실행하세요.');
+          google.script.run.withSuccessHandler((cfg) => {
+            this.isLoading = false;
+            this.appConfig = cfg;
+            this.requestUpdate();
+          }).getAppConfig();
         }).withFailureHandler((err) => {
           this.isLoading = false;
           alert('저장 실패: ' + (err && err.message ? err.message : err));
@@ -3685,7 +3713,7 @@
           ]},
           { t: 'item', tab: 'budget', label: '차기연도 인건비', icon: 'calendar' },
           { t: 'group', label: '설정', icon: 'sliders', prop: 'expandConfig', items: [
-            { tab: 'policy-tables', label: '정책·기준표', icon: 'book', run: () => this._loadPolicyInfo() },
+            { tab: 'policy-tables', label: '정책·기준표', icon: 'book', run: () => { this._loadPolicyInfo(); this._loadAdmins(); } },
             { tab: 'basic-salary', label: '기본급표', icon: 'table', run: () => this._loadBasicSalary() },
             { tab: 'tax-rates', label: '세금·퇴직금 요율', icon: 'calc', run: () => this._loadTaxRates() },
             { tab: 'income-tax', label: '간이세액표', icon: 'receipt', run: () => this._loadIncomeTax() },
@@ -3759,7 +3787,18 @@
                   <input type="text" .value="${this.ocAppTitle || ''}" @input="${(e) => this.ocAppTitle = e.target.value}" placeholder="화면 제목 (선택)" style="min-width:220px;">
                   <button class="btn btn-primary" @click="${() => this._saveOrgConfig()}">저장</button>
                 </div>
-                <p class="setup-next">다음 단계 — 편집기에서 <code>setupAllSheets</code> 를 한 번 실행해 시트를 만든 뒤, <strong>설정 → 정책·기준표</strong>에서 기본급표·요율·간이세액표·공휴일을 입력하세요.</p>
+                <p class="setup-next">다음 단계 — 저장하면 시트를 만드는 2단계로 넘어갑니다. 그 뒤 <strong>설정 → 정책·기준표</strong>에서 기본급표·요율·간이세액표·공휴일을 입력하세요.</p>
+              </div>
+            ` : ''}
+            ${this.appConfig && this.appConfig.configured === true && this.appConfig.sheetsReady === false ? html`
+              <div class="setup-card">
+                <div class="setup-step">첫 설정 2/2</div>
+                <h3>시트를 만드세요</h3>
+                <p>직원명부·호봉관리·급여 계산에 필요한 탭을 자동으로 만듭니다. 기존 데이터는 건드리지 않습니다.</p>
+                <div class="setup-row">
+                  <button class="btn btn-primary" ?disabled="${this.settingUp}" @click="${() => this._setupAllSheets()}">${this.settingUp ? '만드는 중…' : '시트 만들기'}</button>
+                  ${this.setupMsg ? html`<span style="color:#dc2626; font-size:13px;">${this.setupMsg}</span>` : ''}
+                </div>
               </div>
             ` : ''}
             ${this.activeTab === 'master' ? html`
@@ -4757,6 +4796,30 @@
                   급여·공제·휴가 계산의 <strong>기준 데이터</strong>다. 각 표를 최신으로 유지해야 계산이 맞다.
                   <span style="color:#0f766e;">수동</span> = 기관이 직접 입력, <span style="color:#b45309;">보조</span> = 공식자료로 채우고 주기적으로 갱신.
                 </p>
+
+                ${this.appConfig && this.appConfig.isAdmin ? html`
+                <div class="card">
+                  <b>관리자 관리</b>
+                  <div class="muted" style="margin:4px 0 8px">
+                    이 목록에 있는 구글 계정만 이 시스템의 데이터를 읽고 쓸 수 있습니다. 스크립트 편집 권한과는 별개입니다 —
+                    코드 수정이 필요 없는 사람에게는 <strong>편집자 권한 대신 여기 관리자로만</strong> 등록하세요.
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                    ${(this.adminList || []).map(e => html`
+                      <span class="badge" style="background:#eef2ff; color:#3730a3; display:inline-flex; align-items:center; gap:6px;">
+                        ${e}
+                        <button @click="${() => this._removeAdmin(e)}" style="border:none;background:none;color:#3730a3;cursor:pointer;font-weight:700;padding:0;line-height:1;">×</button>
+                      </span>`)}
+                    ${!this.adminList || !this.adminList.length ? html`<span class="muted">불러오는 중…</span>` : ''}
+                  </div>
+                  <div class="bar">
+                    <input style="flex:1;min-width:240px" placeholder="추가할 관리자 이메일" .value="${this.adminDraft || ''}"
+                      @input="${(e) => this.adminDraft = e.target.value}" @keydown="${(e) => e.key === 'Enter' && this._addAdmin()}">
+                    <button class="btn btn-primary" @click="${() => this._addAdmin()}">추가</button>
+                    ${this.adminMsg ? html`<span style="color:#dc2626; font-size:13px;">${this.adminMsg}</span>` : ''}
+                  </div>
+                </div>
+                ` : ''}
 
                 ${!this.policyInfo ? html`<div class="card"><p style="text-align:center; color:#64748b; padding:40px;">불러오는 중...</p></div>` : html`
                   <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
