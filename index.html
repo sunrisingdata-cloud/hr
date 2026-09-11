@@ -874,14 +874,12 @@
           }
           
           // 기존 데이터 로드 (이 후에 시작)
-          this._fetchData();
-          this._fetchAllEmployees();
+          this._fetchIfReady();
           this._loadDaumScript();
         }).withFailureHandler((error) => {
           console.error('직원 수당 로드 실패:', error);
           // 실패해도 다른 데이터는 로드
-          this._fetchData();
-          this._fetchAllEmployees();
+          this._fetchIfReady();
           this._loadDaumScript();
         }).loadEmpAllowances();
       }
@@ -896,6 +894,17 @@
       _handleError(err) {
         alert("통신 중 에러가 발생했습니다:\n" + err.message);
         this.isLoading = false;
+      }
+
+      // 첫 설정(시트 만들기) 전에는 읽을 탭 자체가 없어서 에러만 난다. 설정이 끝난 뒤 불러온다.
+      _fetchIfReady() {
+        google.script.run.withSuccessHandler((cfg) => {
+          if (cfg) { this.appConfig = cfg; this.requestUpdate(); }
+          if (!cfg || cfg.sheetsReady === false) return;
+          this._fetchData();
+          this._fetchAllEmployees();
+        }).withFailureHandler(() => { this._fetchData(); this._fetchAllEmployees(); })
+          .getAppConfig();
       }
 
       _fetchData() {
@@ -2511,7 +2520,7 @@
         this.settingUp = true; this.setupMsg = '';
         google.script.run.withSuccessHandler(() => {
           this.settingUp = false;
-          google.script.run.withSuccessHandler((cfg) => { this.appConfig = cfg; this.requestUpdate(); }).getAppConfig();
+          this._fetchIfReady();
         }).withFailureHandler((e) => { this.settingUp = false; this.setupMsg = e.message || String(e); this.requestUpdate(); })
           .setupAllSheets();
       }
@@ -2552,11 +2561,8 @@
         this.isLoading = true;
         this.loadingMsg = '기관 설정 저장 중...';
         google.script.run.withSuccessHandler(() => {
-          google.script.run.withSuccessHandler((cfg) => {
-            this.isLoading = false;
-            this.appConfig = cfg;
-            this.requestUpdate();
-          }).getAppConfig();
+          this.isLoading = false;
+          this._fetchIfReady();
         }).withFailureHandler((err) => {
           this.isLoading = false;
           alert('저장 실패: ' + (err && err.message ? err.message : err));

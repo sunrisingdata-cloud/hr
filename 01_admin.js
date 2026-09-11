@@ -86,7 +86,9 @@ function doGet() {
 }
 
 function getActiveSheetByName(name) {
-  return SpreadsheetApp.openById(SS_ID).getSheetByName(name);
+  var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(name);
+  if (!sheet) throw new Error('"' + name + '" 시트가 아직 없습니다. 첫 설정의 "시트 만들기"를 먼저 실행하세요.');
+  return sheet;
 }
 
 function getHobongData() {

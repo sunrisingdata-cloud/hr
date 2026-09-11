@@ -140,7 +140,7 @@ function deleteCareerWeb(rowIndex) {
 // 직원명부에서 모든 직원 조회
 function getAllEmployeesFromMaster() {
   requireAdmin_();
-  const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
+  const masterSheet = getActiveSheetByName('직원명부');
   const data = masterSheet.getDataRange().getValues();
   
   let employees = [];
