@@ -49,8 +49,8 @@ Apps Script 프로젝트 코드·속성을 전부 볼 수 있는 개발자 권�
 ## 방식 2 — clasp (개발자용)
 
 ```bash
-git clone https://github.com/sunrisingdata-cloud/welfare-erp.git
-cd welfare-erp
+git clone https://github.com/sunrisingdata-cloud/hr.git
+cd hr
 clasp login
 clasp create --type sheets --title "○○기관 통합관리"
 ```

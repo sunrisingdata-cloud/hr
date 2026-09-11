@@ -1,4 +1,4 @@
-# CLAUDE.md — welfare-erp
+# CLAUDE.md — hr (공용 인사급여, 구 welfare-erp)
 
 사회복지시설 **통합 관리 시스템(ERP)** 의 배포용 공유본.
 인사·급여·근태·휴가·예산을 다루며, 추후 일지 등 모듈이 추가될 수 있다.
