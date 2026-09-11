@@ -2524,13 +2524,24 @@
         const email = (this.adminDraft || '').trim();
         if (!email) return;
         this.adminMsg = '추가 중…';
-        google.script.run.withSuccessHandler((r) => { this.adminList = r.admins || []; this.adminDraft = ''; this.adminMsg = ''; this.requestUpdate(); })
+        google.script.run.withSuccessHandler((r) => {
+          this.adminList = r.admins || [];
+          this.adminDraft = '';
+          this.adminMsg = (r.share && r.share.ok === false)
+            ? '관리자로 등록했지만 스프레드시트 자동 공유에 실패했습니다(' + (r.share.message || '') + '). 시트에서 직접 편집자로 공유해주세요.'
+            : '';
+          this.requestUpdate();
+        })
           .withFailureHandler((e) => { this.adminMsg = e.message || String(e); this.requestUpdate(); })
           .addAdmin(email);
       }
       _removeAdmin(email) {
-        if (!confirm(email + ' 을(를) 관리자에서 제외할까요?')) return;
-        google.script.run.withSuccessHandler((r) => { this.adminList = r.admins || []; this.requestUpdate(); })
+        if (!confirm(email + ' 을(를) 관리자에서 제외할까요?\n스프레드시트 공유 권한도 함께 해제됩니다.')) return;
+        google.script.run.withSuccessHandler((r) => {
+          this.adminList = r.admins || [];
+          if (r.share && r.share.ok === false) alert('관리자에서는 제외했지만 스프레드시트 공유 해제에 실패했습니다: ' + (r.share.message || ''));
+          this.requestUpdate();
+        })
           .withFailureHandler((e) => { alert(e.message || String(e)); })
           .removeAdmin(email);
       }
@@ -4803,6 +4814,7 @@
                   <div class="muted" style="margin:4px 0 8px">
                     이 목록에 있는 구글 계정만 이 시스템의 데이터를 읽고 쓸 수 있습니다. 스크립트 편집 권한과는 별개입니다 —
                     코드 수정이 필요 없는 사람에게는 <strong>편집자 권한 대신 여기 관리자로만</strong> 등록하세요.
+                    여기서 추가·제외하면 <strong>데이터 스프레드시트 공유도 자동으로 함께 처리</strong>되므로, 시트에서 따로 공유할 필요가 없습니다.
                   </div>
                   <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
                     ${(this.adminList || []).map(e => html`

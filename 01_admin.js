@@ -39,6 +39,24 @@ function requireAdmin_() {
 }
 function safe_getAppConfig_() { try { return getAppConfig(); } catch (e) { return { configured: false }; } }
 
+// 웹앱이 접속자 권한으로 실행되므로(executeAs: USER_ACCESSING), 관리자 명단에만 넣고
+// 스프레드시트 공유를 빠뜨리면 그 사람은 앱을 아예 못 연다. 두 목록을 항상 같이 움직인다.
+// 공유 처리가 실패해도 관리자 등록 자체는 살려두고, 실패 사유만 호출자에게 돌려준다.
+function _syncSheetShare_(email, grant) {
+  try {
+    var ss = SpreadsheetApp.openById(SS_ID);
+    if (grant) { ss.addEditor(email); return { ok: true }; }
+    var owner = ss.getOwner();
+    if (owner && (owner.getEmail() || '').toLowerCase() === email) {
+      return { ok: false, message: '시트 소유자라 공유는 해제되지 않았습니다.' };
+    }
+    ss.removeEditor(email);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: String((err && err.message) || err) };
+  }
+}
+
 // 관리자 추가/조회 — 관리자만 가능(첫 관리자는 위에서 자동 등록됨)
 function addAdmin(email) {
   requireAdmin_();
@@ -47,7 +65,7 @@ function addAdmin(email) {
   var e = String(email || '').trim().toLowerCase();
   if (e && cur.indexOf(e) === -1) cur.push(e);
   p.setProperty('SUPER_ADMIN_EMAILS', cur.join(','));
-  return { success: true, admins: cur };
+  return { success: true, admins: cur, share: e ? _syncSheetShare_(e, true) : { ok: true } };
 }
 function removeAdmin(email) {
   requireAdmin_();
@@ -57,7 +75,7 @@ function removeAdmin(email) {
   cur = cur.filter(function (x) { return x !== e; });
   if (!cur.length) throw new Error('마지막 관리자는 제거할 수 없습니다.');
   p.setProperty('SUPER_ADMIN_EMAILS', cur.join(','));
-  return { success: true, admins: cur };
+  return { success: true, admins: cur, share: e ? _syncSheetShare_(e, false) : { ok: true } };
 }
 function getAdmins() { requireAdmin_(); return (PropertiesService.getScriptProperties().getProperty('SUPER_ADMIN_EMAILS') || '').split(/[,\s]+/).filter(Boolean); }
 
