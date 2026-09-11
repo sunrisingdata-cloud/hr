@@ -9,9 +9,46 @@
 ## 스택 / 구조
 
 - **Google Apps Script 웹앱** (clasp로 로컬 ↔ Apps Script 동기화)
-- `Code.js` — 서버 코드. 스프레드시트 읽기/쓰기, 호봉·경력·예산 계산, 메일 발송, 시간 기반 트리거 자동화
+- 서버 코드는 **2026-09-11부터 `Code.js` 하나가 아니라 번호 접두 파일 32개로 분리** (taehwa-hr-payroll 과 같은 방식 — 동작은 완전히 동일, 편집기에서 찾기만 쉬워짐). 주요 파일:
+  | 파일 | 내용 |
+  |---|---|
+  | `00_config.js` | `CONFIG`/`SS_ID` — 기관별로 바꾸는 블록 |
+  | `01_admin.js` | **관리자 권한** — `isAdmin_`/`requireAdmin_`/`addAdmin`/`removeAdmin`/`getAdmins`/`amIAdmin`/`doGet`/`getAppConfig`/`setOrgConfig` |
+  | `10_hobong.js` | 호봉 산정 핵심 |
+  | `22_setup_all_sheets.js` | `setupAllSheets` — 최초 배포 시 1회 실행 |
+  | `12_salary_table.js`/`13_salary_all.js` | 연봉표 저장/전체 연봉표 |
+  | `14_tax_rate.js`/`24_income_tax.js` | 세금·퇴직금 요율/간이세액표 |
+  | `15_basic_salary.js`/`16_policy_screen.js`/`17_holidays.js` | 기본급표/정책·기준표 화면/공휴일 |
+  | `20_monthly_salary.js`/`23_payroll.js`/`25_ledger.js`/`26_stats.js` | 월급표/월급계산/급여대장/월급통계 |
+  | `21_attendance_sheet.js`/`32_attendance_view.js`/`38_attendance_upload.js` | 근태 시트구조/조회/업로드 |
+  | `27_budget.js`/`30_budget_save.js` | 인건비예산 산정/저장 |
+  | `28_allowance_config.js`/`29_allowance_save.js` | 제수당 설정객체/저장 |
+  | `18_salary_mail.js`/`19_gmail_auth.js`/`31_payslip_mail.js` | 연봉표·급여명세서 메일, Gmail 권한 |
+  | `33_leave_grant.js`/`34_leave_auto.js`/`35_leave_balance.js`/`36_leave_balance_all.js`/`37_leave_cache.js`/`40_leave_promotion.js` | 휴가부여/자동부여/잔여계산(개인·전체)/잔여캐시/연차사용촉진 |
+  **`Code.js` 자체는 삭제됨** — 되살리지 말 것.
 - `index.html` — 프론트엔드 SPA. `LitElement`(lit-all CDN) + `SheetJS`(xlsx CDN). **급여 계산식 상당수가 이 클라이언트 쪽에 있음**
 - `appsscript.json` — 웹앱 설정 (`access: ANYONE`, `executeAs: USER_DEPLOYING`, timeZone `Asia/Seoul`, V8)
+
+## 관리자 권한 (2026-09-11 추가)
+
+원래 인증 개념이 전혀 없어 `access:ANYONE` 상태로 급여·가족수당·자격증 등 전 직원 데이터가
+로그인 여부와 무관하게 노출됐었다. `01_admin.js` 에 `SUPER_ADMIN_EMAILS` 스크립트 속성 기반
+관리자 명단을 추가하고, 데이터를 읽고 쓰는 함수 전부에 `requireAdmin_()` 가드를 걸었다.
+빈 사본(초기 설정 전)에서 첫 관리 동작을 시도한 사람이 자동으로 최초 관리자가 되고
+(단순히 화면을 열어보기만 해서는 등록 안 됨 — `getAppConfig` 는 부작용 없는 `isAdmin_()`만 씀),
+이미 구축된 시스템에서 관리자 명단만 비어 있으면 자동 등록을 거부한다. 관리자 추가/제거는
+정책·기준표 화면의 "관리자 관리" 카드에서 — 편집기 접근 불필요.
+
+## 배포 관련 주의 — 내장 스크립트의 외부 접근 한계 (2026-09-11 발견)
+
+마스터 템플릿(바인딩 스크립트)의 웹앱을, 그 스프레드시트에 아무 연결이 없는 완전 외부 계정에게
+공개 웹앱으로 서비스하려 하면 배포·공유 설정이 전부 맞아도 Google Drive 식 "액세스 권한 필요"
+화면이 뜨며 막히는 경우가 있었다(원인 미확정 — 배포 설정/공유 설정 둘 다 확인했지만 재현됨).
+**"기관에 사본 만들기로 넘기는" 최종 배포는 문제없다**(각 기관이 자기 사본의 소유자이자
+실행자가 되므로). 문제는 **넘기기 전에 외부 협력 기관(예: 서초)에게 마스터를 URL로 미리
+테스트시키는 용도**로 쓸 때만 발생한다. 이 경우엔 별도의 **독립(standalone) 스크립트** 사본을
+만들어(`CONFIG.SS_ID` 를 전용 데이터 스프레드시트로 명시 지정) 그걸로 테스트시킬 것 —
+haesaem-journal-seocho 와 같은 패턴. `~/welfare-erp-seocho` 가 그 사본이다.
 
 ## 배포 방식 — 사본 만들기(기본) / clasp
 
