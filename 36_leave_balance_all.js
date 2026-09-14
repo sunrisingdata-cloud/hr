@@ -110,6 +110,7 @@ function bal2_annualStart(grants) {
 
 // 편집기 테스트용: 전 직원 잔여를 로그로
 function bal2_test() {
+  requireAdmin_();
   var all = getAllLeaveBalance();
   all.forEach(function (p) {
     var s = p.balances.map(function (b) { return b.item + ' ' + b.balanceText; }).join(', ');

@@ -22,7 +22,12 @@ function isAdmin_() {
 // 실제 관리 동작(설정 저장/데이터 열람 등)을 할 때만 통과되는 가드.
 // 관리자 명단이 비어 있고 시스템도 아직 초기 설정 전(빈 사본)이면, 지금 이 동작을 시도한
 // 사람을 최초 관리자로 등록한다 — 단순히 화면을 열어보기만 해서는(getAppConfig) 등록되지 않는다.
+// 한 번 통과했으면 같은 실행 안에서는 다시 확인하지 않는다. 이 가드는 직원 수만큼
+// 반복되는 함수(av_itemGranted·bal_usedHours 등)에도 걸려 있어서, 매번 스크립트 속성을
+// 읽으면 호출 수백 건에서 눈에 띄게 느려진다. 전역은 실행마다 초기화되므로 남지 않는다.
+var _adminOk_ = false;
 function requireAdmin_() {
+  if (_adminOk_) return;
   var email = '';
   try { email = (Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
   if (!email) throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
@@ -30,12 +35,13 @@ function requireAdmin_() {
   var raw = p.getProperty('SUPER_ADMIN_EMAILS');
   if (!raw) {
     var cfg = safe_getAppConfig_();
-    if (!cfg.configured) { p.setProperty('SUPER_ADMIN_EMAILS', email); return; }
+    if (!cfg.configured) { p.setProperty('SUPER_ADMIN_EMAILS', email); _adminOk_ = true; return; }
     throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
   }
   if (raw.split(/[,\s]+/).map(function (s) { return s.trim().toLowerCase(); }).indexOf(email) === -1) {
     throw new Error('이 시스템은 등록된 관리자만 이용할 수 있습니다. 관리자에게 문의하세요.');
   }
+  _adminOk_ = true;
 }
 function safe_getAppConfig_() { try { return getAppConfig(); } catch (e) { return { configured: false }; } }
 
@@ -86,6 +92,7 @@ function doGet() {
 }
 
 function getActiveSheetByName(name) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(name);
   if (!sheet) throw new Error('"' + name + '" 시트가 아직 없습니다. 첫 설정의 "시트 만들기"를 먼저 실행하세요.');
   return sheet;

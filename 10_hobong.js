@@ -75,6 +75,7 @@ function _gradeAt_(segs, atDate, curGrade, certText, certDateRaw) {
 }
 // 개인 연봉표용: 특정 직원의 그 해 월별 급수·호봉·기본급
 function getMonthlyHobongInfo(empId, year) {
+  requireAdmin_();
   try {
     const Y = parseInt(year, 10);
     const ss = SpreadsheetApp.openById(SS_ID);
@@ -158,6 +159,7 @@ function getAllEmployeesFromMaster() {
 
 // 입퇴사 처리
 function updateEmploymentStatus(empId, action, date) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
   const data = masterSheet.getDataRange().getValues();
@@ -183,6 +185,7 @@ function updateEmploymentStatus(empId, action, date) {
 
 // 호봉관리에 행 추가
 function addToHobongSheet(empId, masterRowIndex) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
   const masterData = masterSheet.getDataRange().getValues();
@@ -243,6 +246,7 @@ function formatYearMonth(val) {
 
 // 호봉관리에서 행 제거
 function removeFromHobongSheet(empId) {
+  requireAdmin_();
   const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
   const data = hobongSheet.getDataRange().getValues();
   
@@ -258,6 +262,7 @@ function removeFromHobongSheet(empId) {
 // 입사일은 직원명부(V열)에서 읽어온다.
 // 경력상세에 본 기관 행이 있으면 퇴사일(D열)만 갱신, 없으면 새 행 추가.
 function recordOrgCareer(empId, leaveDate) {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const masterSheet = ss.getSheetByName('직원명부');
   const detailSheet = ss.getSheetByName('경력상세');
@@ -341,6 +346,7 @@ function formatDateOnly(val) {
 
 
 function saveEmployeeInfo(empId, joinDate, leaveDate) {
+  requireAdmin_();
   const masterSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const data = masterSheet.getDataRange().getValues();
   
@@ -438,6 +444,7 @@ function updateEmployeeFull(data) {
 
 // 호봉관리 시트의 급수(C)/자격증(F,G,H)/직급(I) 동기화
 function syncHobongFromMaster(empId, grade, position, cert, certGrade, certDate) {
+  requireAdmin_();
   const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
   if (!hobongSheet) return;
   const rows = hobongSheet.getDataRange().getValues();
@@ -567,6 +574,7 @@ function _getJoinLeave_(empId) {
   } catch (e) { return { join: '', leave: '' }; }
 }
 function getHobongInfo(empId) {
+  requireAdmin_();
   try {
     const hobongSheet = SpreadsheetApp.openById(SS_ID).getSheetByName('호봉관리');
     if (!hobongSheet) return null;
@@ -601,6 +609,7 @@ function getHobongInfo(empId) {
 
 
 function initPersonalSalarySheet() {
+  requireAdmin_();
   try {
     let sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('개인연봉설정');
     if (!sheet) {
@@ -652,6 +661,7 @@ function saveSalaryPersonal(empId, empName, year, basicSalary, allowancesJson) {
 }
 
 function loadSalaryPersonal(empId, year) {
+  requireAdmin_();
   try {
     const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('개인연봉설정');
     if (!sheet) return null;

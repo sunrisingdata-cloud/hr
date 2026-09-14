@@ -120,6 +120,7 @@ function deleteLeaveGrant(rowNum) {
 // 직원별·항목별 부여 합계 (해당 연도). 잔여 계산의 부여쪽 소스
 // 반환: { empId: { 이름, items: { 항목: 합계일수 } } }
 function getLeaveGrantSummary(year) {
+  requireAdmin_();
   const grants = getLeaveGrants({ year: year, empId: '전체' });
   const map = {};
   grants.forEach((g) => {

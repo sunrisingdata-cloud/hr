@@ -7,6 +7,7 @@
 //  - 그 외: 기타수당(비고에 '통상임금' 있으면 통상임금 포함)
 // =========================================================================
 function _buildSettingsFromSheet(year) {
+  requireAdmin_();
   year = parseInt(year, 10);
   const s = {
     allowances: { mealSubsidy: 0, managerAllowance: 0, holidayAllowance: 0 },

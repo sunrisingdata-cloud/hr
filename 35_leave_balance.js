@@ -25,6 +25,7 @@ function bal_fmt(hours) {
 // 휴가기록 시트에서 항목별 사용시간 합 (dateOk: 사용날짜 조건함수)
 // 시트: A직원ID B이름 C연월일 D휴가종류 E사용시간(없으면 8h=종일)
 function bal_usedHours(empId, item, dateOk) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('휴가기록');
   if (!sheet) return 0;
   var last = sheet.getLastRow();
@@ -44,6 +45,7 @@ function bal_usedHours(empId, item, dateOk) {
 
 // 휴가대장 부여 일수 합 (rowOk: (부여일자, 적용연도, 일수) 조건함수)
 function bal_grantDays(empId, item, rowOk) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return 0;
   var last = sheet.getLastRow();
@@ -63,6 +65,7 @@ function bal_grantDays(empId, item, rowOk) {
 
 // 연차 현재 연차연도 시작일 = 가장 최근 '연간부여일'(15일↑), 없으면(월차만) 최초 부여일
 function bal_annualStart(empId) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return null;
   var last = sheet.getLastRow();
@@ -115,6 +118,7 @@ function getLeaveBalance(empId) {
 
 // 편집기 테스트용: empId 바꿔서 실행 → 로그로 잔여 확인
 function bal_test() {
+  requireAdmin_();
   var empId = 'EMP15'; // ← 확인할 직원ID로 바꿔
   var r = getLeaveBalance(empId);
   r.forEach(function (x) {

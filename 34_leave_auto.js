@@ -45,6 +45,7 @@ function av_ymd(date) {
   return date.getFullYear() + '-' + p(date.getMonth() + 1) + '-' + p(date.getDate());
 }
 function av_isWorkday(date) {
+  requireAdmin_();
   var day = date.getDay();
   if (day === 0 || day === 6) return false;
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName('공휴일');
@@ -64,6 +65,7 @@ function av_isWorkday(date) {
 }
 // 그 해에 자동으로 특정 항목이 이미 부여됐는지
 function av_itemGranted(empId, item, year) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return false;
   var last = sheet.getLastRow();
@@ -80,6 +82,7 @@ function av_itemGranted(empId, item, year) {
 }
 // 특정 날짜에 그 직원 자동 연차가 이미 있는지 (월차 중복 방지)
 function av_annualOnDate(empId, dateStr) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return false;
   var last = sheet.getLastRow();
@@ -96,6 +99,7 @@ function av_annualOnDate(empId, dateStr) {
 }
 // 그 해 자동 정기연차(15일 이상) 이미 부여됐는지
 function av_annualYear(empId, year) {
+  requireAdmin_();
   var sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(LEAVE_GRANT_SHEET);
   if (!sheet) return false;
   var last = sheet.getLastRow();
@@ -135,6 +139,7 @@ function av_dueAnnual(join, today, cutoff) {
 
 // ===== 매일 트리거로 실행 =====
 function av_dailyGrant() {
+  requireAdmin_();
   var master = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   if (!master) return { success: false, message: '직원명부 없음' };
   var data = master.getDataRange().getValues();
@@ -180,6 +185,7 @@ function av_dailyGrant() {
 
 // ===== (1회용) 지금 전 직원 올해 연차 초기부여 =====
 function av_seedAnnualNow() {
+  requireAdmin_();
   var master = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   if (!master) return { success: false, message: '직원명부 없음' };
   var data = master.getDataRange().getValues();
@@ -208,6 +214,7 @@ function av_seedAnnualNow() {
 
 // ===== (1회용) 지금 전 직원 올해 정기휴가 초기부여 =====
 function av_seedFixedNow() {
+  requireAdmin_();
   var master = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   if (!master) return { success: false, message: '직원명부 없음' };
   var data = master.getDataRange().getValues();
@@ -230,6 +237,7 @@ function av_seedFixedNow() {
 
 // ===== (1회 실행) 매일 새벽 3시 트리거 등록 (옛 트리거도 정리) =====
 function av_registerTrigger() {
+  requireAdmin_();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var fn = t.getHandlerFunction();
     if (fn === 'av_dailyGrant' || fn === 'dailyLeaveGrant') ScriptApp.deleteTrigger(t);

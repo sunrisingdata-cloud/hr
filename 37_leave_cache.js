@@ -7,6 +7,7 @@
 
 // 매일 트리거로 실행: 전 직원 잔여를 계산해 캐시 시트에 저장
 function buildLeaveBalanceCache() {
+  requireAdmin_();
   var all = getAllLeaveBalance(); // [{empId, name, balances:[{item, balanceHours,...}]}]
   var ss = SpreadsheetApp.openById(SS_ID);
   var sheet = ss.getSheetByName('잔여캐시');
@@ -31,6 +32,7 @@ function buildLeaveBalanceCache() {
 
 // 편집기에서 1회 실행: 매일 새벽 4시 잔여캐시 갱신 트리거 등록
 function setupBalanceCacheTrigger() {
+  requireAdmin_();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'buildLeaveBalanceCache') ScriptApp.deleteTrigger(t);
   });

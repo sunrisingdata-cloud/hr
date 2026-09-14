@@ -86,6 +86,7 @@ function lookupIncomeTax(taxableSalary, dependents) {
 
 // 여러 직원 일괄 조회용 (선택)
 function lookupIncomeTaxBatch(items) {
+  requireAdmin_();
   // items: [{taxable, dependents}]
   return (items || []).map(it => lookupIncomeTax(it.taxable, it.dependents));
 }

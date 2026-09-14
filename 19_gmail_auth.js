@@ -3,6 +3,7 @@
 // 실행하면 본인 계정으로 테스트 메일이 발송됨 (권한 정상 부여 확인)
 // =========================================================================
 function authorizeMail() {
+  requireAdmin_();
   const me = Session.getActiveUser().getEmail();
   MailApp.sendEmail({
     to: me,

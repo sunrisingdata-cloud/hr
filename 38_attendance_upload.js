@@ -87,16 +87,19 @@ function _importUpsert_(sheetName, headers, rows, mapFn) {
 
 // rows: [{ empId, name, date, checkIn, checkOut }]
 function importAttendanceExcel(rows) {
+  requireAdmin_();
   return _importUpsert_('근태기록', ['직원ID', '이름', '연월일', '출근시간', '퇴근시간'], rows,
     r => [r.empId, r.name || '', r.date, att_time(r.checkIn), att_time(r.checkOut)]);
 }
 // rows: [{ empId, name, date, start, end, note }]
 function importOvertimeExcel(rows) {
+  requireAdmin_();
   return _importUpsert_('시간외근로', ['직원ID', '이름', '연월일', '시작시간', '종료시간', '비고'], rows,
     r => [r.empId, r.name || '', r.date, att_time(r.start), att_time(r.end), r.note || '']);
 }
 // rows: [{ empId, name, date, leaveType, hours }]
 function importLeaveExcel(rows) {
+  requireAdmin_();
   return _importUpsert_('휴가기록', ['직원ID', '이름', '연월일', '휴가종류', '사용시간'], rows,
     r => [r.empId, r.name || '', r.date, r.leaveType || '', (r.hours != null && r.hours !== '') ? parseFloat(r.hours) : 8]);
 }

@@ -4,6 +4,7 @@
 
 // ---- 시트 생성/헤더 준비 (편집기에서 1회 실행: setupWorkSheets) ----
 function setupWorkSheets() {
+  requireAdmin_();
   _ensureSheet_('근태기록', ['직원ID','이름','연월일','출근시간','퇴근시간']);
   _ensureSheet_('시간외근로', ['직원ID','이름','연월일','시작시간','종료시간','비고']);
   _ensureSheet_('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간']);

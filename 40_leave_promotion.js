@@ -19,6 +19,7 @@ const PR_DEADLINE_ALERT_DAYS = 3; // 마감 임박 재알림
 
 // ---------- 시트 ----------
 function pr_ensureSheet() {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   let sheet = ss.getSheetByName(PR_SHEET);
   if (!sheet) {
@@ -73,6 +74,7 @@ function pr_fmt(hours) {
 
 // 이미 처리했는지 (직원·연도·차수)
 function pr_alreadySent(empId, year, stage) {
+  requireAdmin_();
   const sheet = pr_ensureSheet();
   const last = sheet.getLastRow();
   if (last < 2) return false;
@@ -87,12 +89,14 @@ function pr_alreadySent(empId, year, stage) {
 }
 
 function pr_log(empId, name, year, stage, hours, assignDate, note) {
+  requireAdmin_();
   pr_ensureSheet().appendRow([empId, name, year, stage, pr_ymd(pr_today()), hours, assignDate || '', note || '']);
 }
 
 // ---------- 대상 산출 ----------
 // mode: 'first'(1차) | 'admin'(담당자 협의 시작) | 'deadline'(마감 임박)
 function pr_findTargets(mode) {
+  requireAdmin_();
   const master = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   if (!master) return [];
   const data = master.getDataRange().getValues();
@@ -138,6 +142,7 @@ function pr_findTargets(mode) {
 
 // 아직 2차 통보를 안 보낸 대상만 (마감 임박 재알림용)
 function pr_notSentYet(list) {
+  requireAdmin_();
   const sheet = pr_ensureSheet();
   const last = sheet.getLastRow();
   const sent = {};
@@ -154,6 +159,7 @@ function pr_notSentYet(list) {
 
 // ---------- 메일: 1차 안내 (직원) ----------
 function pr_mail1st(p) {
+  requireAdmin_();
   const subject = '[' + ORG_NAME + '] 연차유급휴가 사용 안내 (1차)';
   const html =
     '<div style="font-family:Malgun Gothic,sans-serif; color:#222; max-width:640px; line-height:1.8;">' +
@@ -187,6 +193,7 @@ function pr_mail1st(p) {
 
 // ---------- 메일: 2차 통보 (직원, 담당자가 협의 후 발송) ----------
 function pr_mail2nd(p, assignDate, note) {
+  requireAdmin_();
   const subject = '[' + ORG_NAME + '] 연차유급휴가 사용시기 지정 안내 (2차)';
   const html =
     '<div style="font-family:Malgun Gothic,sans-serif; color:#222; max-width:640px; line-height:1.8;">' +
@@ -216,6 +223,7 @@ function pr_mail2nd(p, assignDate, note) {
 
 // ---------- 담당자 이메일 목록 (K열 권한) ----------
 function pr_adminEmails() {
+  requireAdmin_();
   const master = SpreadsheetApp.openById(SS_ID).getSheetByName('직원명부');
   const out = [];
   if (!master) return out;
@@ -231,6 +239,7 @@ function pr_adminEmails() {
 
 // ---------- 메일: 담당자 (협의 시작 / 마감 임박) ----------
 function pr_mailAdmin(targets, isDeadline) {
+  requireAdmin_();
   const admins = pr_adminEmails();
   if (!admins.length) return 0;
 
@@ -281,6 +290,7 @@ function pr_mailAdmin(targets, isDeadline) {
 
 // ---------- 매일 트리거 ----------
 function pr_dailyCheck() {
+  requireAdmin_();
   const results = [];
 
   // 1차: 직원 안내
@@ -318,6 +328,7 @@ function pr_dailyCheck() {
 
 // ---------- 화면: 2차 통보 대상 (지정일 미입력) ----------
 function getPromotionTargets() {
+  requireAdmin_();
   const sheet = pr_ensureSheet();
   const last = sheet.getLastRow();
   if (last < 2) return [];
@@ -362,6 +373,7 @@ function getPromotionTargets() {
 
 // ---------- 화면: 2차 통보 발송 ----------
 function sendPromotion2nd(rowNum, assignDate, note) {
+  requireAdmin_();
   try {
     if (!assignDate) return { success: false, message: '지정일을 입력하세요.' };
     const sheet = pr_ensureSheet();
@@ -395,6 +407,7 @@ function sendPromotion2nd(rowNum, assignDate, note) {
 
 // ---------- 트리거 등록 (편집기 1회 실행) ----------
 function setupPromotionTrigger() {
+  requireAdmin_();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'pr_dailyCheck') ScriptApp.deleteTrigger(t);
   });
@@ -404,17 +417,20 @@ function setupPromotionTrigger() {
 
 // ---------- 메일 미리보기 (본인에게 발송, 이력 기록 안 함) ----------
 function pr_test1st() {
+  requireAdmin_();
   const me = Session.getActiveUser().getEmail();
   pr_mail1st({ name: '홍길동(테스트)', email: me, balanceText: '12일 4시간', expiry: '2026-12-31' });
   return '1차 안내 발송: ' + me;
 }
 function pr_test2nd() {
+  requireAdmin_();
   const me = Session.getActiveUser().getEmail();
   pr_mail2nd({ name: '홍길동(테스트)', email: me, balanceText: '5일 0시간', expiry: '2026-12-31' },
     '2026-12-21 ~ 2026-12-24', '담당자 협의: 12월 넷째 주 사용 합의');
   return '2차 통보 발송: ' + me;
 }
 function pr_testAdmin() {
+  requireAdmin_();
   const me = Session.getActiveUser().getEmail();
   const targets = [
     { name: '홍길동(테스트)', balanceText: '5일 0시간', deadline: '2026-10-31', expiry: '2026-12-31' },

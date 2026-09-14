@@ -70,14 +70,17 @@ function _ensureSheet_(name, headers) {
 
 // ---- 저장(append). rows: 객체 배열 ----
 function addAttendance(rows) {   // 근태기록
+  requireAdmin_();
   return _appendRows_('근태기록', ['직원ID','이름','연월일','출근시간','퇴근시간'],
     rows, r => [r.empId, r.name, r.date, r.checkIn, r.checkOut]);
 }
 function addOvertime(rows) {     // 시간외근로 (슬랙 웹훅도 같은 컬럼 순서로 append)
+  requireAdmin_();
   return _appendRows_('시간외근로', ['직원ID','이름','연월일','시작시간','종료시간','비고'],
     rows, r => [r.empId, r.name, r.date, r.start, r.end, r.note || '']);
 }
 function addLeave(rows) {        // 휴가기록
+  requireAdmin_();
   return _appendRows_('휴가기록', ['직원ID','이름','연월일','휴가종류','사용시간'],
     rows, r => [r.empId, r.name, r.date, r.leaveType, (r.hours != null && r.hours !== '') ? r.hours : 8]);
 }
@@ -96,6 +99,7 @@ function _appendRows_(sheetName, headers, rows, mapFn) {
 
 // 휴가 기간(시작~종료)을 하루 1행으로 펼쳐 저장. hoursPerDay 미지정 시 종일(8h)
 function addLeaveRange(empId, name, startDate, endDate, leaveType, hoursPerDay) {
+  requireAdmin_();
   const rows = [];
   const s = new Date(startDate), e = new Date(endDate);
   for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
@@ -129,6 +133,7 @@ function _matchYM_(dateVal, year, month) {
 // 규칙: 그 날 총근로 = 퇴근-출근-1h(휴게). 8시간 초과분 = 1.5배.
 // 시간외 시트에 그 날 기록이 있고 총근로가 8h 미만이면 부족분(최대 8h까지)은 1배.
 function getWorkSummary(year, month) {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const REST = 1;        // 휴게 1시간 가정
   const STD = 8;         // 기본 소정근로 8시간

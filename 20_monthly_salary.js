@@ -13,6 +13,7 @@ function monthlySalaryHeaders_() {
 
 // 월급표 시트 생성/헤더 준비 (편집기에서 1회 실행 또는 저장 시 자동 호출)
 function initMonthlySalarySheet() {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   let sheet = ss.getSheetByName('월급표');
   if (!sheet) sheet = ss.insertSheet('월급표');
@@ -70,6 +71,7 @@ function saveMonthlySalary(records) {
 
 // 월급표 조회 (해당 연도, month 지정 시 해당 월만) → 객체 배열 (직원×재원 다중 행)
 function getMonthlySalary(year, month) {
+  requireAdmin_();
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = ss.getSheetByName('월급표');
   if (!sheet) return [];
@@ -89,6 +91,7 @@ function getMonthlySalary(year, month) {
 
 // 특정 직원의 전월 월급 행 전체 조회 (재원 이월용). 1월이면 전년 12월 참조
 function getPrevMonthSalary(empId, year, month) {
+  requireAdmin_();
   let py = year, pm = month - 1;
   if (pm < 1) { pm = 12; py = year - 1; }
   const rows = getMonthlySalary(py, pm);

@@ -110,6 +110,7 @@ function getPolicySheetsInfo() {
 
 // 월급계산용: 세금/퇴직금 시트의 연도별 요율을 {항목: 비율} 객체로 반환
 function getTaxRates(year) {
+  requireAdmin_();
   year = year || new Date().getFullYear();
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = _findTaxSheet_(ss, false);
